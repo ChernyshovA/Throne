@@ -485,7 +485,7 @@ jobs:
           fi
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/;s/^pkgrel=.*/pkgrel=1/" aur/PKGBUILD
       - name: Publish to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@master
+        uses: KSXGitHub/github-actions-deploy-aur@084b0d9b15415bf9cdb65d44dad1efe37a354050 # v4.2.0
         with:
           pkgname: throne
           asset_dir: aur
@@ -544,12 +544,15 @@ jobs:
           mkdir -p repo/apt/pool/main \
             repo/apt/dists/stable/main/binary-amd64 \
             repo/apt/dists/stable/main/binary-arm64
-          cp "$AMD64" "$ARM64" repo/apt/pool/main/
+          # dpkg-scanpackages --arch only picks up files named *_<arch>.deb.
+          cp "$AMD64" "repo/apt/pool/main/throne_${VERSION}_amd64.deb"
+          cp "$ARM64" "repo/apt/pool/main/throne_${VERSION}_arm64.deb"
           cd repo/apt
           for arch in amd64 arm64; do
             dpkg-scanpackages --arch "$arch" pool /dev/null > "dists/stable/main/binary-${arch}/Packages"
             gzip -k9 "dists/stable/main/binary-${arch}/Packages"
           done
+          # Staged outside dists/stable, which apt-ftparchive scans, so Release does not list itself.
           apt-ftparchive \
             -o APT::FTPArchive::Release::Origin=throne \
             -o APT::FTPArchive::Release::Label=Throne \
@@ -558,15 +561,16 @@ jobs:
             -o 'APT::FTPArchive::Release::Architectures=amd64 arm64' \
             -o APT::FTPArchive::Release::Components=main \
             -o 'APT::FTPArchive::Release::Description=Throne APT repository' \
-            release dists/stable > dists/stable/Release
+            release dists/stable > "$RUNNER_TEMP/Release"
+          mv "$RUNNER_TEMP/Release" dists/stable/Release
           printf '%s\n' 'deb [trusted=yes] https://throneproj.github.io/Throne/apt stable main' > throne.list
           printf '%s\n' 'Types: deb' \
             'URIs: https://throneproj.github.io/Throne/apt' \
             'Suites: stable' 'Components: main' 'Trusted: yes' > throne.sources
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: repo
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5.0.1
