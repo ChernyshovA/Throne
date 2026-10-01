@@ -21,7 +21,7 @@ DEPENDS=""
 if [[ "$VARIANT" == "systemqt" ]]; then
     DEPENDS=$(cat <<'EOF'
 Requires: (qt6-qtbase-gui >= 6.5 or libQt6Gui6 >= 6.5)
-Requires: (qt6-qtwayland >= 6.5 or qt6-wayland >= 6.5)
+Requires: (qt6-qtwayland >= 6.5 or libQt6WaylandClient6 >= 6.5)
 Requires: (google-noto-emoji-color-fonts or google-noto-coloremoji-fonts or noto-coloremoji-fonts)
 EOF
 )

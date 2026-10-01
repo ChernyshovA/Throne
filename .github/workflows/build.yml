@@ -547,7 +547,7 @@ jobs:
           gpg --batch --yes --local-user "$SIGNING_FPR" --armor --detach-sign repo/rpm/repodata/repomd.xml
           printf '%s\n' '[throne]' 'name=Throne RPM repository' \
             'baseurl=https://throneproj.github.io/Throne/rpm' \
-            'enabled=1' 'gpgcheck=1' 'repo_gpgcheck=1' \
+            'enabled=1' 'autorefresh=1' 'gpgcheck=1' 'repo_gpgcheck=1' \
             'gpgkey=https://throneproj.github.io/Throne/throne.asc' > repo/rpm/throne.repo
       - name: Build APT repository
         env:
