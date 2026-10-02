@@ -44,7 +44,7 @@ Categories=Network;Application;
 EOF
 
 cat >"$WORK/Throne.spec" <<-EOF
-Name: Throne
+Name: throne
 Version: ${RPM_VERSION}
 Release: 1
 Summary: Qt based cross-platform GUI proxy configuration manager (backend: sing-box)
@@ -86,4 +86,4 @@ rpmbuild -bb \
   --target "$RPM_ARCH" \
   "$WORK/Throne.spec"
 
-mv "$WORK/RPMS/$RPM_ARCH/Throne-${RPM_VERSION}-1.${RPM_ARCH}.rpm" "Throne-$TAG-fedora-$ARCH$SUFFIX.rpm"
+mv "$WORK/RPMS/$RPM_ARCH/throne-${RPM_VERSION}-1.${RPM_ARCH}.rpm" "Throne-$TAG-fedora-$ARCH$SUFFIX.rpm"
