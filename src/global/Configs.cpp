@@ -14,7 +14,9 @@
 #include <include/api/RPC.h>
 
 #include "include/database/GroupsRepo.h"
+#include "include/database/MarkersRepo.h"
 #include "include/database/RoutesRepo.h"
+#include "include/scanner/DefaultIpLists.h"
 
 
 #ifdef Q_OS_WIN
@@ -40,6 +42,11 @@ namespace Configs {
         if (dataManager->routesRepo->GetAllRouteProfileIds().empty()) {
             auto defaultRoute = RouteProfile::GetDefaultChain();
             dataManager->routesRepo->AddRouteProfile(defaultRoute);
+        }
+        // Once only, so lists the user deleted stay deleted.
+        if (!dataManager->markersRepo->IsMarked(Markers::DefaultIpLists)) {
+            Scanner::DefaultIpLists::EnsureAll();
+            dataManager->markersRepo->Mark(Markers::DefaultIpLists);
         }
     }
 

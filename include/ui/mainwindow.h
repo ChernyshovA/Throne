@@ -63,6 +63,8 @@ class TrayOtpCodes;
 class GlobalHotkeys;
 class TestRunner;
 class DialogVpnAuth;
+class DialogScanner;
+class DialogIpLists;
 struct VpnAuthChallenge;
 
 struct VpnEndpointState {
@@ -167,6 +169,12 @@ public:
 
     void setDownloadReport(const DownloadProgressReport& report, bool show);
 
+    void showIpListsDialog(int selectListId = -1);
+
+    void showScannerDialog();
+
+    void refreshScannerDataView(bool force = false);
+
 signals:
 
     void profile_selected(int id);
@@ -192,6 +200,8 @@ private slots:
     void on_menu_preset_settings_triggered();
 
     void on_menu_otp_manager_triggered();
+
+    void on_menu_scanner_triggered();
 
     void on_menu_hotkey_settings_triggered();
 
@@ -484,6 +494,10 @@ private:
     std::atomic<bool> m_vpnChallengeBusy{false};
     QSet<QString> m_vpnChallengeSeen;
     QPointer<DialogVpnAuth> m_vpnAuthDialog;
+    QPointer<DialogScanner> m_scannerDialog;
+    QPointer<DialogIpLists> m_ipListsDialog;
+    QHash<int, QString> m_scannerNames;
+    bool m_scannerPanelShown = false;
     QString m_vpnEndpointState;
     QString m_vpnTroubleSummary;
     QString m_vpnTroubleDetail;

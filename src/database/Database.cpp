@@ -130,6 +130,30 @@ namespace Configs {
         }
     }
 
+    bool Database::transaction(const std::string& op, const std::function<bool()>& body) {
+        try {
+            db.exec("BEGIN IMMEDIATE");
+        } catch (std::exception& e) {
+            NotifyError(op, e);
+            return false;
+        }
+        try {
+            if (!body()) {
+                db.exec("ROLLBACK");
+                return false;
+            }
+            db.exec("COMMIT");
+            return true;
+        } catch (std::exception& e) {
+            try { db.exec("ROLLBACK"); } catch (...) {}
+            NotifyError(op, e);
+            return false;
+        } catch (...) {
+            try { db.exec("ROLLBACK"); } catch (...) {}
+            throw;
+        }
+    }
+
     void Database::execDeleteByIdInChunk(const std::string& table, const std::string& idColumn, const std::vector<int>& ids) {
         if (ids.empty()) return;
         std::string sql = "DELETE FROM " + table + " WHERE " + idColumn + " IN (";
@@ -271,6 +295,7 @@ namespace Configs {
         const std::vector<std::string> kRouteTables = {"route_rules", "route_profiles"};
         const std::vector<std::string> kSettingsTables = {"settings", "markers"};
         const std::vector<std::string> kOtpTables = {"otp_profiles"};
+        const std::vector<std::string> kIpListTables = {"ip_list_entries", "ip_scans", "ip_lists"};
 
         std::vector<std::string> tableColumns(SQLite::Database& d, const std::string& schema, const std::string& table) {
             std::vector<std::string> cols;
@@ -368,6 +393,7 @@ namespace Configs {
         if (!parts.routes) wipe(kRouteTables);
         if (!parts.settings) wipe(kSettingsTables);
         if (!parts.otp) wipe(kOtpTables);
+        if (!parts.ipLists) wipe(kIpListTables);
         try { dest.exec("VACUUM"); } catch (...) {}
     }
 
@@ -395,6 +421,7 @@ namespace Configs {
                     db.exec("DELETE FROM main.markers");
             }
             if (parts.otp) for (const auto& t : kOtpTables) copyTable(db, t);
+            if (parts.ipLists) for (const auto& t : kIpListTables) copyTable(db, t);
 
             // Keep the ID counters ahead of restored data so newly created IDs never collide.
             if (parts.profiles || parts.routes) {
@@ -418,6 +445,19 @@ namespace Configs {
                     "UPDATE entity_ids SET otp_profile_last_id = MAX(otp_profile_last_id,"
                     "(SELECT COALESCE(MAX(id),0) FROM otp_profiles)" +
                     std::string(bakOtpIds ? ",(SELECT COALESCE(MAX(otp_profile_last_id),0) FROM bak.entity_ids)" : "") + ")");
+            }
+
+            if (parts.ipLists) {
+                const bool bakListIds = columnExists(db, "bak", "entity_ids", "ip_list_last_id");
+                db.exec(
+                    "UPDATE entity_ids SET ip_list_last_id = MAX(ip_list_last_id,"
+                    "(SELECT COALESCE(MAX(id),0) FROM ip_lists)" +
+                    std::string(bakListIds ? ",(SELECT COALESCE(MAX(ip_list_last_id),0) FROM bak.entity_ids)" : "") + ")");
+                const bool bakScanIds = columnExists(db, "bak", "entity_ids", "ip_scan_last_id");
+                db.exec(
+                    "UPDATE entity_ids SET ip_scan_last_id = MAX(ip_scan_last_id,"
+                    "(SELECT COALESCE(MAX(id),0) FROM ip_scans)" +
+                    std::string(bakScanIds ? ",(SELECT COALESCE(MAX(ip_scan_last_id),0) FROM bak.entity_ids)" : "") + ")");
             }
 
             db.exec("COMMIT");

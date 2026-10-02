@@ -18,6 +18,7 @@
 #include "include/global/HTTPRequestHelper.hpp"
 #include "include/global/LocalNetwork.hpp"
 #include "include/global/Logger.hpp"
+#include "include/scanner/ScanManager.h"
 #include "include/sys/Process.hpp"
 #include "include/sys/SystemProxy.hpp"
 #include "include/ui/mainWindow/MainWindowInternal.h"
@@ -157,6 +158,7 @@ void MainWindow::prepare_exit()
     RegisterHiddenMenuShortcuts(true);
     RegisterHotkey(true);
     on_commitDataRequest();
+    Scanner::ScanManager::instance()->StopAll(true);
     Configs::dataManager->settingsRepo->noSave = true; // don't change Configs::dataManager->settingsRepo after this line
     profile_stop(false, true);
 

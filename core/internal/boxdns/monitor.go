@@ -13,6 +13,8 @@ var DnsManagerInstance *DnsManager
 
 type DnsManager struct {
 	Monitor tun.DefaultInterfaceMonitor
+	// Kept current by Monitor on every network change.
+	Finder  control.InterfaceFinder
 	lastIfc *control.Interface
 }
 
@@ -23,14 +25,15 @@ func init() {
 		fmt.Println("Could not create NetworkUpdateMonitor")
 		return
 	}
+	finder := control.NewDefaultInterfaceFinder()
 	monitor, err := tun.NewDefaultInterfaceMonitor(updMonitor, logger, tun.DefaultInterfaceMonitorOptions{
-		InterfaceFinder: control.NewDefaultInterfaceFinder(),
+		InterfaceFinder: finder,
 	})
 	if err != nil {
 		fmt.Println("Could not create DefaultInterfaceMonitor")
 		return
 	}
-	DnsManagerInstance = &DnsManager{Monitor: monitor}
+	DnsManagerInstance = &DnsManager{Monitor: monitor, Finder: finder}
 	monitor.RegisterCallback(DnsManagerInstance.HandleSystemDNS)
 	if err = updMonitor.Start(); err != nil {
 		fmt.Println("Could not start updMonitor")

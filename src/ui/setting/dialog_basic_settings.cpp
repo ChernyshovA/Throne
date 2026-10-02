@@ -9,6 +9,7 @@
 #include "include/global/HTTPRequestHelper.hpp"
 #include "include/global/DeviceDetailsHelper.hpp"
 #include "include/database/entities/Group.h"
+#include "include/scanner/ScanManager.h"
 
 #include <QStyleFactory>
 #include <QFileDialog>
@@ -520,6 +521,7 @@ static Configs::BackupParts BackupPartsFromMeta(quint32 formatVersion, const QJs
         p.routes = po["routes"].toBool() && files.contains("database");
         p.settings = po["settings"].toBool() && files.contains("database");
         p.otp = po["otp"].toBool() && files.contains("database");
+        p.ipLists = po["ipLists"].toBool() && files.contains("database");
         p.icons = po["icons"].toBool() && hasIcons;
     } else {
         p.profiles = p.routes = p.settings = files.contains("database");
@@ -592,6 +594,7 @@ void DialogBasicSettings::on_backup_create_clicked() {
     parts.routes = ui->backup_inc_routes->isChecked();
     parts.settings = ui->backup_inc_settings->isChecked();
     parts.otp = ui->backup_inc_otp->isChecked();
+    parts.ipLists = ui->backup_inc_ip_lists->isChecked();
     parts.icons = ui->backup_inc_icons->isChecked();
 
     if (!parts.any()) {
@@ -667,6 +670,7 @@ void DialogBasicSettings::on_backup_create_clicked() {
     partsObj["routes"] = parts.routes;
     partsObj["settings"] = parts.settings;
     partsObj["otp"] = parts.otp;
+    partsObj["ipLists"] = parts.ipLists;
     partsObj["icons"] = parts.icons;
 
     QJsonObject meta;
@@ -684,6 +688,7 @@ void DialogBasicSettings::on_backup_create_clicked() {
     if (parts.routes) included << tr("Routing profiles");
     if (parts.settings) included << tr("Settings");
     if (parts.otp) included << tr("OTP profiles");
+    if (parts.ipLists) included << tr("IP lists and scans");
     if (parts.icons) included << tr("Custom icons");
 
     QMessageBox::information(this, tr("Backup Created"),
@@ -756,8 +761,9 @@ void DialogBasicSettings::on_backup_restore_clicked() {
     auto* cbRoutes = new QCheckBox(tr("Routing profiles"), &dlg);
     auto* cbSettings = new QCheckBox(tr("Settings"), &dlg);
     auto* cbOtp = new QCheckBox(tr("OTP profiles"), &dlg);
+    auto* cbIpLists = new QCheckBox(tr("IP lists and scans"), &dlg);
     auto* cbIcons = new QCheckBox(tr("Custom icons"), &dlg);
-    for (auto* cb : {cbProfiles, cbRoutes, cbSettings, cbOtp, cbIcons}) cb->setChecked(true);
+    for (auto* cb : {cbProfiles, cbRoutes, cbSettings, cbOtp, cbIpLists, cbIcons}) cb->setChecked(true);
     cbProfiles->setEnabled(avail.profiles);
     cbProfiles->setChecked(avail.profiles);
     cbRoutes->setEnabled(avail.routes);
@@ -766,12 +772,15 @@ void DialogBasicSettings::on_backup_restore_clicked() {
     cbSettings->setChecked(avail.settings);
     cbOtp->setEnabled(avail.otp);
     cbOtp->setChecked(avail.otp);
+    cbIpLists->setEnabled(avail.ipLists);
+    cbIpLists->setChecked(avail.ipLists);
     cbIcons->setEnabled(avail.icons);
     cbIcons->setChecked(avail.icons);
     layout->addWidget(cbProfiles);
     layout->addWidget(cbRoutes);
     layout->addWidget(cbSettings);
     layout->addWidget(cbOtp);
+    layout->addWidget(cbIpLists);
     layout->addWidget(cbIcons);
 
     auto* warn = new QLabel(
@@ -793,6 +802,7 @@ void DialogBasicSettings::on_backup_restore_clicked() {
     chosen.routes = avail.routes && cbRoutes->isChecked();
     chosen.settings = avail.settings && cbSettings->isChecked();
     chosen.otp = avail.otp && cbOtp->isChecked();
+    chosen.ipLists = avail.ipLists && cbIpLists->isChecked();
     chosen.icons = avail.icons && cbIcons->isChecked();
 
     if (!chosen.any()) {
@@ -814,6 +824,8 @@ void DialogBasicSettings::on_backup_restore_clicked() {
         tempDbFile.write(files["database"]);
         tempDbFile.close();
 
+        // A running scan would otherwise keep writing its progress and results over the restored rows.
+        Scanner::ScanManager::instance()->StopAll(false);
         try {
             skippedRules = Configs::dataManager->getDatabase().restoreSelective(tempDbPath.toStdString(), chosen);
         } catch (std::exception& e) {

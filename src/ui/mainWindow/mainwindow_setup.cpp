@@ -11,6 +11,8 @@
 #include "include/configs/sub/RouteUpdater.hpp"
 #include "include/global/PeriodicRunner.hpp"
 #include "include/global/Logger.hpp"
+#include "include/scanner/IpListUpdater.h"
+#include "include/scanner/ScanManager.h"
 #include "include/stats/autoselector/AutoSelectorMonitor.hpp"
 #include "include/ui/stats/dialog_auto_selector.h"
 #include "include/sys/Process.hpp"
@@ -1108,6 +1110,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(Stats::autoSelectorMonitor, &Stats::AutoSelectorMonitor::updated, this,
             [this] { refresh_auto_selector_view(); }, Qt::QueuedConnection);
 
+    auto* scanManager = Scanner::ScanManager::instance();
+    connect(scanManager, &Scanner::ScanManager::progressChanged, this,
+            [this](int) { refreshScannerDataView(); }, Qt::QueuedConnection);
+    connect(scanManager, &Scanner::ScanManager::statusChanged, this,
+            [this](int) { refreshScannerDataView(true); }, Qt::QueuedConnection);
+    connect(scanManager, &Scanner::ScanManager::scansChanged, this, [this] {
+        m_scannerNames.clear();
+        refreshScannerDataView(true);
+    }, Qt::QueuedConnection);
+
     {
         auto* runner = Throne::PeriodicRunner::instance();
         // Interval is sign-encoded in settings (negative = disabled); < 30 min counts as off.
@@ -1129,6 +1141,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
                 Configs::dataManager->settingsRepo->Save();
             },
             [] { UI_update_all_remote_routes(true); },
+        });
+        runner->Add({
+            {},
+            [] { return 1; },
+            nullptr,
+            nullptr,
+            [] { Scanner::IpListUpdater::instance()->CheckAutoUpdate(); },
         });
     }
 

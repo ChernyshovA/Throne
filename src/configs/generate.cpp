@@ -411,7 +411,14 @@ namespace Configs {
         // Build-scoped, so a concurrent test build on a worker thread cannot pollute the started profile's set.
         thread_local QSet<int> *buildProfileSink = nullptr;
 
+        // Build-scoped like buildProfileSink: scan clones shadow ids without ever reaching the repo.
+        thread_local const QHash<int, std::shared_ptr<Profile>> *buildProfileOverrides = nullptr;
+
         std::shared_ptr<Profile> getProfile(int id) {
+            if (buildProfileOverrides != nullptr) {
+                if (const auto it = buildProfileOverrides->constFind(id); it != buildProfileOverrides->constEnd())
+                    return it.value();
+            }
             auto ent = dataManager->profilesRepo->GetProfile(id);
             if (buildProfileSink != nullptr && ent != nullptr) buildProfileSink->insert(id);
             return ent;
@@ -2287,6 +2294,80 @@ namespace Configs {
             return {testCandidate::Build, nullptr};
         }
 
+        // ---------------------------------------------------------- scan clones
+
+        // Far below every sentinel id (-1, warpProfileID), so a clone never resolves to one.
+        constexpr int kScanSyntheticIdBase = -1000000;
+
+        bool isVpnEndpointType(const QString &type) {
+            return type == "openvpn" || type == "openconnect";
+        }
+
+        std::shared_ptr<Profile> scanChainHop(int id) {
+            return id == warpProfileID ? getWarpProfile() : getProfile(id);
+        }
+
+        QString scanCloneBlocker(const std::shared_ptr<Profile> &profile) {
+            if (profile == nullptr || profile->outbound == nullptr) return QObject::tr("The profile no longer exists");
+            const auto &type = profile->type;
+            if (type == "chain" || type == "custom" || type == "extracore" || type == "tailscale" ||
+                type == "autoselector" || type == "direct" || profile->outbound->IsExtraCore() ||
+                profile->outbound->IsXrayFullConfig())
+                return QObject::tr("%1 profiles have no single server to scan").arg(type);
+            if (const auto *hy = profile->Hysteria(); hy != nullptr && hy->RealmActive())
+                return QObject::tr("Hysteria2 realm profiles have no fixed server to scan");
+            return {};
+        }
+
+        // A chain is scanned through the hop it dials directly, the first of its in-to-out list.
+        QString scanBaseBlocker(const std::shared_ptr<Profile> &base) {
+            if (base == nullptr || base->outbound == nullptr) return QObject::tr("The profile no longer exists");
+            if (base->type != "chain") return scanCloneBlocker(base);
+            const auto *chain = base->Chain();
+            if (chain == nullptr || chain->list.isEmpty()) return QObject::tr("The chain has no hops");
+            for (const int hopId : chain->list) {
+                const auto hop = scanChainHop(hopId);
+                if (hop == nullptr || hop->outbound == nullptr) return QObject::tr("A hop of the chain no longer exists");
+                if (hop->outbound->IsExtraCore() || hop->outbound->IsXrayFullConfig())
+                    return QObject::tr("Chains with an extra-core or Xray full config hop cannot be tested");
+            }
+            return scanCloneBlocker(scanChainHop(chain->list.first()));
+        }
+
+        std::shared_ptr<Profile> scanDeepClone(const std::shared_ptr<Profile> &base) {
+            if (base == nullptr || base->outbound == nullptr) return nullptr;
+            auto clone = ProfilesRepo::NewProfile(base->type);
+            if (clone->outbound == nullptr || clone->outbound->invalid) return nullptr;
+            if (!clone->outbound->ParseFromJson(base->outbound->ExportToJson())) return nullptr;
+            clone->name = base->name;
+            clone->gid = base->gid;
+            // ResolveVpnCredentials finds the in-memory credential override by the original profile's id.
+            clone->outbound->profile_id = base->id >= 0 ? base->id : base->outbound->profile_id;
+            return clone;
+        }
+
+        struct TestBuildOptions {
+            QString chainPrefix = tags::testChainPrefix;
+            bool validate = true;
+            bool groupHops = true;
+        };
+
+        class ScopedProfileOverrides {
+        public:
+            explicit ScopedProfileOverrides(const QHash<int, std::shared_ptr<Profile>> *overrides)
+                : previous_(buildProfileOverrides) {
+                buildProfileOverrides = overrides;
+            }
+
+            ~ScopedProfileOverrides() { buildProfileOverrides = previous_; }
+
+            ScopedProfileOverrides(const ScopedProfileOverrides &) = delete;
+            ScopedProfileOverrides &operator=(const ScopedProfileOverrides &) = delete;
+
+        private:
+            const QHash<int, std::shared_ptr<Profile>> *previous_;
+        };
+
     } // namespace
 
     bool ParsePredefinedDNS(const QStringList& lines, QList<PredefinedDNSEntry>& out, QString* error) {
@@ -2546,7 +2627,9 @@ namespace Configs {
         return false;
     }
 
-    std::shared_ptr<BuildTestConfigResult> BuildTestConfig(const QList<std::shared_ptr<Profile> > &profiles)
+    namespace {
+    std::shared_ptr<BuildTestConfigResult> buildTestConfigImpl(const QList<std::shared_ptr<Profile> > &profiles,
+                                                               const TestBuildOptions &options)
     {
         auto res = std::make_shared<BuildTestConfigResult>();
         // outbound::Build() cannot see BuildContext::forTest.
@@ -2585,7 +2668,7 @@ namespace Configs {
             }
             if (candidate.kind == testCandidate::XrayFullConfig)
             {
-                if (!IsValid(item)) {
+                if (options.validate && !IsValid(item)) {
                     MW_show_log("Skipping invalid custom Xray full config: " + item->outbound->name);
                     item->SetLatency(-1);
                     continue;
@@ -2611,7 +2694,7 @@ namespace Configs {
                 res->tag2entID.insert(tag, item->id);
                 continue;
             }
-            if (!IsValid(item)) {
+            if (options.validate && !IsValid(item)) {
                 MW_show_log("Skipping invalid config: " + item->outbound->name);
                 item->SetLatency(-1);
                 continue;
@@ -2634,13 +2717,15 @@ namespace Configs {
                 }
             }
             auto IDs = unwrapChain(item->id);
-            auto group = dataManager->groupsRepo->GetGroup(item->gid);
-            if (group == nullptr) {
-                res->error = "Null group on profile, data is corrupted";
-                return res;
+            if (options.groupHops) {
+                auto group = dataManager->groupsRepo->GetGroup(item->gid);
+                if (group == nullptr) {
+                    res->error = "Null group on profile, data is corrupted";
+                    return res;
+                }
+                if (group->landing_proxy_id >= 0) IDs.prepend(group->landing_proxy_id);
+                if (group->front_proxy_id >= 0) IDs.append(group->front_proxy_id);
             }
-            if (group->landing_proxy_id >= 0) IDs.prepend(group->landing_proxy_id);
-            if (group->front_proxy_id >= 0) IDs.append(group->front_proxy_id);
             int singToXrayPort = -1;
             int xrayToSingPort = -1;
             if (item->outbound->IsXray()) singToXrayPort = xrayPorts[xrayPortIdx++];
@@ -2650,7 +2735,7 @@ namespace Configs {
             }
             auto tag = buildOutboundChain(ctx, {
                 .hopIDs = IDs,
-                .prefix = hopTag(tags::testChainPrefix, suffix),
+                .prefix = hopTag(options.chainPrefix, suffix),
                 .singToXrayPort = singToXrayPort,
                 .xrayToSingPort = xrayToSingPort,
             });
@@ -2692,5 +2777,160 @@ namespace Configs {
         res->isXrayNeeded = ctx.result->isXrayNeeded;
 
         return res;
+    }
+    } // namespace
+
+    std::shared_ptr<BuildTestConfigResult> BuildTestConfig(const QList<std::shared_ptr<Profile> > &profiles)
+    {
+        return buildTestConfigImpl(profiles, {});
+    }
+
+    std::shared_ptr<Profile> CloneProfileWithServer(const std::shared_ptr<Profile> &base, const QString &address, int port)
+    {
+        if (!scanCloneBlocker(base).isEmpty()) return nullptr;
+        auto clone = scanDeepClone(base);
+        if (clone == nullptr) return nullptr;
+        auto *out = clone->outbound.get();
+
+        QString original = base->outbound->GetAddress().trimmed();
+        if (auto *ovpn = clone->OpenVPN(); ovpn != nullptr) {
+            // server/server_port and servers are mutually exclusive; the first remote supplies what the scan keeps.
+            if (!ovpn->servers.isEmpty()) {
+                const auto &first = ovpn->servers.first();
+                if (original.isEmpty()) original = first->server.trimmed();
+                if (first->server_port > 0) ovpn->server_port = first->server_port;
+                if (!first->network.isEmpty()) ovpn->network = first->network;
+            }
+            ovpn->servers.clear();
+            ovpn->remote_random = false;
+        }
+        UnwrapIPV6Host(original);
+
+        if (!original.isEmpty() && !IsIpAddress(original)) {
+            if (out->HasTLS()) {
+                if (auto tls = out->GetTLS(); tls != nullptr && tls->server_name.isEmpty()) tls->server_name = original;
+            }
+            if (out->HasTransport()) {
+                auto transport = out->GetTransport();
+                if (transport != nullptr && transport->host.isEmpty() &&
+                    (transport->type == "ws" || transport->type == "httpupgrade" || transport->type == "http"))
+                    transport->host = original;
+            }
+            if (out->HasXrayStream()) {
+                if (auto stream = out->GetXrayStream(); stream != nullptr) {
+                    if (stream->security == "tls" && stream->TLS->serverName.isEmpty()) stream->TLS->serverName = original;
+                    if (stream->security == "reality" && stream->reality->serverName.isEmpty())
+                        stream->reality->serverName = original;
+                    if (stream->network == "ws" && stream->ws->host.isEmpty()) stream->ws->host = original;
+                    if (stream->network == "httpupgrade" && stream->httpupgrade->host.isEmpty())
+                        stream->httpupgrade->host = original;
+                    if (stream->network == "xhttp" && stream->xhttp->host.isEmpty()) stream->xhttp->host = original;
+                }
+            }
+            if (auto *ocon = clone->OpenConnect(); ocon != nullptr && ocon->tls->server_name.isEmpty())
+                ocon->tls->server_name = original;
+        }
+
+        if (port > 0) {
+            if (auto *hy = clone->Hysteria(); hy != nullptr) {
+                hy->server_ports.clear();
+                hy->hop_interval.clear();
+                hy->hop_interval_max.clear();
+            }
+            if (auto *mi = clone->Mieru(); mi != nullptr) mi->server_ports.clear();
+        }
+
+        QString host = address.trimmed();
+        UnwrapIPV6Host(host);
+        out->SetAddress(host);
+        if (port > 0) out->SetPort(port);
+        clone->id = -1;
+        return clone;
+    }
+
+    QString ValidateScanBase(const std::shared_ptr<Profile> &base)
+    {
+        if (auto blocker = scanBaseBlocker(base); !blocker.isEmpty()) return blocker;
+        auto clone = scanDeepClone(base);
+        if (clone == nullptr) return QObject::tr("The profile could not be copied for the scan");
+        clone->id = kScanSyntheticIdBase;
+        const QHash<int, std::shared_ptr<Profile>> overrides{{clone->id, clone}};
+        const ScopedProfileOverrides scoped(&overrides);
+        SetBuildingTestConfig(true);
+        const auto clearTestBuildFlag = qScopeGuard([] { SetBuildingTestConfig(false); });
+        bool coreUnreachable = false;
+        if (IsValid(clone, &coreUnreachable)) return {};
+        if (coreUnreachable) return QObject::tr("The profile could not be checked: core unreachable");
+        return QObject::tr("The profile is not valid; the log has the details");
+    }
+
+    ScanTestBuild BuildScanTestConfig(const std::shared_ptr<Profile> &base, const QList<ScanTestTarget> &targets)
+    {
+        ScanTestBuild out;
+        if (auto blocker = scanBaseBlocker(base); !blocker.isEmpty()) {
+            out.error = blocker;
+            return out;
+        }
+        const auto *chain = base->Chain();
+        std::shared_ptr<Profile> dialedHop;
+        QString exitType = base->type;
+        if (chain != nullptr) {
+            dialedHop = scanChainHop(chain->list.first());
+            const auto exitHop = chain->list.size() == 1 ? dialedHop : scanChainHop(chain->list.last());
+            exitType = exitHop != nullptr ? exitHop->type : QString();
+        }
+
+        QHash<int, std::shared_ptr<Profile>> overrides;
+        QHash<int, int> synth2target;
+        QList<std::shared_ptr<Profile>> items;
+        int nextId = kScanSyntheticIdBase;
+        for (int i = 0; i < targets.size(); ++i) {
+            const auto &target = targets[i];
+            std::shared_ptr<Profile> item;
+            if (chain != nullptr) {
+                if (auto hop = CloneProfileWithServer(dialedHop, target.address, target.port); hop != nullptr) {
+                    item = scanDeepClone(base);
+                    if (item != nullptr && item->Chain() != nullptr) {
+                        hop->id = nextId--;
+                        overrides.insert(hop->id, hop);
+                        item->Chain()->list[0] = hop->id;
+                    } else {
+                        item = nullptr;
+                    }
+                }
+            } else {
+                item = CloneProfileWithServer(base, target.address, target.port);
+            }
+            if (item == nullptr) {
+                out.unsupported << i;
+                continue;
+            }
+            item->id = nextId--;
+            overrides.insert(item->id, item);
+            synth2target.insert(item->id, i);
+            items << item;
+        }
+        if (items.isEmpty()) {
+            if (!targets.isEmpty()) out.error = QObject::tr("The profile cannot be pointed at the scanned addresses");
+            return out;
+        }
+
+        {
+            const ScopedProfileOverrides scoped(&overrides);
+            out.build = buildTestConfigImpl(items, {.chainPrefix = QStringLiteral("scan"), .validate = false, .groupHops = false});
+        }
+        if (!out.build->error.isEmpty()) {
+            out.error = out.build->error;
+            return out;
+        }
+        for (auto it = out.build->tag2entID.cbegin(); it != out.build->tag2entID.cend(); ++it)
+            out.tag2target.insert(it.key(), synth2target.value(it.value(), -1));
+        if (isVpnEndpointType(exitType)) out.vpnEndpointTags = out.build->outboundTags;
+        return out;
+    }
+
+    void SplitWarpEndpoint(const QString &endpoint, int defaultPort, QString &host, int &port)
+    {
+        splitWarpEndpoint(endpoint, defaultPort, host, port);
     }
 }

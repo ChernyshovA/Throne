@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSet>
@@ -121,4 +122,30 @@ namespace Configs
     QList<int> AuxEndpointInnerHops(int endpointProfileID);
 
     std::shared_ptr<BuildTestConfigResult> BuildTestConfig(const QList<std::shared_ptr<Profile> > &profiles);
+
+    struct ScanTestTarget {
+        QString address;
+        // 0 = keep the profile's port.
+        int port = 0;
+    };
+
+    struct ScanTestBuild {
+        QString error;
+        std::shared_ptr<BuildTestConfigResult> build;
+        QHash<QString, int> tag2target;
+        QStringList vpnEndpointTags;
+        QList<int> unsupported;
+    };
+
+    // Keeps the original domain as SNI/Host; nullptr when the type has no single dialable server.
+    std::shared_ptr<Profile> CloneProfileWithServer(const std::shared_ptr<Profile> &base, const QString &address, int port);
+
+    // Checks a throwaway copy so the live profile's latency is never touched; empty = valid.
+    QString ValidateScanBase(const std::shared_ptr<Profile> &base);
+
+    // Worker thread only; group landing/front hops are not applied.
+    ScanTestBuild BuildScanTestConfig(const std::shared_ptr<Profile> &base, const QList<ScanTestTarget> &targets);
+
+    // Accepts host, host:port, [v6] and [v6]:port; a bare IPv6 address takes defaultPort.
+    void SplitWarpEndpoint(const QString &endpoint, int defaultPort, QString &host, int &port);
 }

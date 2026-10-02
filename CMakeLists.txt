@@ -189,6 +189,7 @@ set(PROJECT_SOURCES
         src/ui/mainWindow/mainwindow_hotkeys.cpp
         src/ui/mainWindow/mainwindow_profile_lifecycle.cpp
         src/ui/mainWindow/mainwindow_autoselector.cpp
+        src/ui/mainWindow/mainwindow_scanner.cpp
         src/ui/mainWindow/TestRunner.cpp
         include/ui/mainWindow/MainWindowInternal.h
         include/ui/mainWindow/TestRunner.h
@@ -390,6 +391,44 @@ set(PROJECT_SOURCES
         src/ui/setting/OtpListWidget.cpp
         include/ui/setting/OtpListWidget.h
 
+        include/ui/utils/ReorderListWidget.h
+        src/ui/utils/ReorderListWidget.cpp
+
+        src/ui/scanner/dialog_scanner.cpp
+        include/ui/scanner/dialog_scanner.h
+        include/ui/scanner/dialog_scanner.ui
+        src/ui/scanner/ScanItem.cpp
+        include/ui/scanner/ScanItem.h
+        src/ui/scanner/dialog_new_scan.cpp
+        include/ui/scanner/dialog_new_scan.h
+        src/ui/scanner/dialog_scan_instance.cpp
+        include/ui/scanner/dialog_scan_instance.h
+        include/ui/scanner/dialog_scan_instance.ui
+        src/ui/scanner/IpEntriesModel.cpp
+        include/ui/scanner/IpEntriesModel.h
+        src/ui/scanner/dialog_ip_lists.cpp
+        include/ui/scanner/dialog_ip_lists.h
+        include/ui/scanner/dialog_ip_lists.ui
+        src/ui/scanner/IpListItem.cpp
+        include/ui/scanner/IpListItem.h
+        src/ui/scanner/dialog_edit_ip_list.cpp
+        include/ui/scanner/dialog_edit_ip_list.h
+        include/ui/scanner/dialog_edit_ip_list.ui
+
+        include/scanner/IpListParse.h
+        src/scanner/IpListParse.cpp
+        include/scanner/WarpPresets.h
+        include/scanner/DefaultIpLists.h
+        src/scanner/DefaultIpLists.cpp
+        include/scanner/ScanProfiles.h
+        src/scanner/ScanProfiles.cpp
+        include/scanner/IpListUpdater.h
+        src/scanner/IpListUpdater.cpp
+        include/scanner/ScanManager.h
+        src/scanner/ScanManager.cpp
+        include/scanner/ScanWorker.h
+        src/scanner/ScanWorker.cpp
+
         src/ui/stats/dialog_traffic_stats.cpp
         include/ui/stats/dialog_traffic_stats.h
         include/ui/stats/dialog_traffic_stats.ui
@@ -530,6 +569,8 @@ set(PROJECT_SOURCES
         include/database/GroupsRepo.h
         include/database/RoutesRepo.h
         include/database/OtpProfilesRepo.h
+        include/database/IpListsRepo.h
+        include/database/IpScansRepo.h
         include/database/SettingsRepo.h
         include/database/TrafficStatsRepo.h
         include/database/MarkersRepo.h
@@ -539,17 +580,22 @@ set(PROJECT_SOURCES
         include/database/entities/RouteProfile.h
         include/database/entities/RouteRule.h
         include/database/entities/OtpProfile.h
+        include/database/entities/IpList.h
+        include/database/entities/IpScan.h
 
         src/database/entities/Profile.cpp
         src/database/entities/Group.cpp
         src/database/entities/RouteProfile.cpp
         src/database/entities/RouteRule.cpp
         src/database/entities/OtpProfile.cpp
+        src/database/entities/IpScan.cpp
 
         src/database/ProfilesRepo.cpp
         src/database/GroupsRepo.cpp
         src/database/RoutesRepo.cpp
         src/database/OtpProfilesRepo.cpp
+        src/database/IpListsRepo.cpp
+        src/database/IpScansRepo.cpp
         src/database/TrafficStatsRepo.cpp
         src/database/MarkersRepo.cpp
 
