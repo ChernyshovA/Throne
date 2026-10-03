@@ -13,6 +13,7 @@
 
 
 #include "include/database/GroupsRepo.h"
+#include "include/database/IpListsRepo.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/database/RoutesRepo.h"
 
@@ -414,14 +415,91 @@ namespace Configs {
         // Build-scoped like buildProfileSink: scan clones shadow ids without ever reaching the repo.
         thread_local const QHash<int, std::shared_ptr<Profile>> *buildProfileOverrides = nullptr;
 
+        struct GenerateEndpointEntry {
+            std::shared_ptr<Profile> live;
+            // nullptr: the live profile is built as it is.
+            std::shared_ptr<Profile> clone;
+        };
+
+        struct GenerateEndpointCache {
+            QHash<int, EndpointResolution> lists;
+            QHash<int, GenerateEndpointEntry> profiles;
+            QSet<int> loggedLists;
+        };
+
+        // Build-scoped like buildProfileSink; without one every lookup resolves afresh and logs nothing.
+        thread_local GenerateEndpointCache *generateEndpointCache = nullptr;
+
+        // Nested builds on one thread share the outermost cache.
+        class GenerateEndpointScope {
+        public:
+            GenerateEndpointScope() : previous_(generateEndpointCache) {
+                if (previous_ == nullptr) generateEndpointCache = &cache_;
+            }
+
+            ~GenerateEndpointScope() { generateEndpointCache = previous_; }
+
+            GenerateEndpointScope(const GenerateEndpointScope &) = delete;
+            GenerateEndpointScope &operator=(const GenerateEndpointScope &) = delete;
+
+        private:
+            GenerateEndpointCache cache_;
+            GenerateEndpointCache *previous_;
+        };
+
+        enum class GenerateServerless { None, Missing, NoServer, Realm };
+
+        GenerateServerless generateServerlessReason(const std::shared_ptr<Profile> &profile) {
+            if (profile == nullptr || profile->outbound == nullptr) return GenerateServerless::Missing;
+            const auto &type = profile->type;
+            if (type == "chain" || type == "custom" || type == "extracore" || type == "tailscale" ||
+                type == "autoselector" || type == "direct" || profile->outbound->IsExtraCore() ||
+                profile->outbound->IsXrayFullConfig())
+                return GenerateServerless::NoServer;
+            if (const auto *hy = profile->Hysteria(); hy != nullptr && hy->RealmActive())
+                return GenerateServerless::Realm;
+            return GenerateServerless::None;
+        }
+
+        std::shared_ptr<Profile> generateEndpointApply(const std::shared_ptr<Profile> &ent) {
+            auto *cache = generateEndpointCache;
+            if (cache != nullptr) {
+                if (const auto it = cache->profiles.constFind(ent->id); it != cache->profiles.constEnd() && it->live == ent)
+                    return it->clone != nullptr ? it->clone : ent;
+            }
+            std::shared_ptr<Profile> clone;
+            if (generateServerlessReason(ent) == GenerateServerless::None) {
+                const auto source = EffectiveEndpointSource(*ent);
+                const auto resolution = ResolveEndpointSource(source);
+                if (!resolution.address.isEmpty()) {
+                    clone = CloneProfileWithServer(ent, resolution.address, 0);
+                    if (clone != nullptr) clone->id = ent->id;
+                } else if (!resolution.problem.isEmpty() && cache != nullptr && !cache->loggedLists.contains(source.ipListId)) {
+                    cache->loggedLists.insert(source.ipListId);
+                    MW_show_log(QObject::tr("%1 dials its own address: %2").arg(ent->outbound->DisplayTypeAndName(), resolution.problem));
+                }
+            }
+            if (cache != nullptr) cache->profiles.insert(ent->id, {ent, clone});
+            return clone != nullptr ? clone : ent;
+        }
+
+        // Profiles a build hands out (traffic credit, selector members) must be the live ones, not their clones.
+        std::shared_ptr<Profile> generateEndpointLive(const std::shared_ptr<Profile> &ent) {
+            const auto *cache = generateEndpointCache;
+            if (cache == nullptr || ent == nullptr) return ent;
+            const auto it = cache->profiles.constFind(ent->id);
+            return it != cache->profiles.constEnd() && it->clone == ent ? it->live : ent;
+        }
+
         std::shared_ptr<Profile> getProfile(int id) {
             if (buildProfileOverrides != nullptr) {
                 if (const auto it = buildProfileOverrides->constFind(id); it != buildProfileOverrides->constEnd())
                     return it.value();
             }
             auto ent = dataManager->profilesRepo->GetProfile(id);
-            if (buildProfileSink != nullptr && ent != nullptr) buildProfileSink->insert(id);
-            return ent;
+            if (ent == nullptr) return nullptr;
+            if (buildProfileSink != nullptr) buildProfileSink->insert(id);
+            return generateEndpointApply(ent);
         }
 
         bool isCustomFullConfig(const std::shared_ptr<Profile> &profile) {
@@ -1578,7 +1656,7 @@ namespace Configs {
 
             if (!ents.isEmpty()) {
                 TrafficChainGroup group;
-                group.profiles = ents;
+                for (const auto &ent : ents) group.profiles << generateEndpointLive(ent);
                 if (!tailingSingEnts.isEmpty()) {
                     group.watchTag = hopTag(req.prefix, tailingStartSuffix);
                 } else {
@@ -1679,7 +1757,7 @@ namespace Configs {
             for (int id : plan.build)
             {
                 if (invalid.contains(id)) continue;
-                auto member = getProfile(id);
+                auto member = generateEndpointLive(getProfile(id));
                 if (member == nullptr) continue;
                 QList<int> hopIDs;
                 if (group->landing_proxy_id >= 0) hopIDs.append(group->landing_proxy_id);
@@ -2308,14 +2386,16 @@ namespace Configs {
         }
 
         QString scanCloneBlocker(const std::shared_ptr<Profile> &profile) {
-            if (profile == nullptr || profile->outbound == nullptr) return QObject::tr("The profile no longer exists");
-            const auto &type = profile->type;
-            if (type == "chain" || type == "custom" || type == "extracore" || type == "tailscale" ||
-                type == "autoselector" || type == "direct" || profile->outbound->IsExtraCore() ||
-                profile->outbound->IsXrayFullConfig())
-                return QObject::tr("%1 profiles have no single server to scan").arg(type);
-            if (const auto *hy = profile->Hysteria(); hy != nullptr && hy->RealmActive())
-                return QObject::tr("Hysteria2 realm profiles have no fixed server to scan");
+            switch (generateServerlessReason(profile)) {
+                case GenerateServerless::Missing:
+                    return QObject::tr("The profile no longer exists");
+                case GenerateServerless::NoServer:
+                    return QObject::tr("%1 profiles have no single server to scan").arg(profile->type);
+                case GenerateServerless::Realm:
+                    return QObject::tr("Hysteria2 realm profiles have no fixed server to scan");
+                case GenerateServerless::None:
+                    break;
+            }
             return {};
         }
 
@@ -2443,6 +2523,7 @@ namespace Configs {
             }
         }
 
+        const GenerateEndpointScope endpointScope;
         BuildContext ctx;
         ctx.ent = ent;
         ctx.result->involvedProfiles = {ent->id};
@@ -2632,6 +2713,7 @@ namespace Configs {
                                                                const TestBuildOptions &options)
     {
         auto res = std::make_shared<BuildTestConfigResult>();
+        const GenerateEndpointScope endpointScope;
         // outbound::Build() cannot see BuildContext::forTest.
         SetBuildingTestConfig(true);
         const auto clearTestBuildFlag = qScopeGuard([] { SetBuildingTestConfig(false); });
@@ -2848,6 +2930,89 @@ namespace Configs {
         return clone;
     }
 
+    EndpointResolution ResolveEndpointSource(const EndpointSource &source)
+    {
+        if (source.mode == EndpointSource::Mode::Address)
+            return {source.address.trimmed(), QObject::tr("the group's fixed address"), {}};
+        if (source.mode != EndpointSource::Mode::IpList) return {};
+
+        auto *cache = generateEndpointCache;
+        if (cache != nullptr) {
+            if (const auto it = cache->lists.constFind(source.ipListId); it != cache->lists.constEnd()) return it.value();
+        }
+        EndpointResolution res;
+        if (const auto list = dataManager->ipListsRepo->GetIpListHeader(source.ipListId); list == nullptr || list->IsHidden()) {
+            res.problem = QObject::tr("The IP list no longer exists");
+        } else {
+            res.origin = QObject::tr("IP list \"%1\"").arg(list->name);
+            if (const auto first = dataManager->ipListsRepo->GetEntries(source.ipListId, 0, 1); !first.isEmpty())
+                res.address = first.first().cidr.section('/', 0, 0);
+            else
+                res.problem = QObject::tr("The IP list \"%1\" is empty").arg(list->name);
+        }
+        if (cache != nullptr) cache->lists.insert(source.ipListId, res);
+        return res;
+    }
+
+    EndpointSource EffectiveEndpointSource(const Profile &profile)
+    {
+        if (profile.endpoint.mode != EndpointSource::Mode::Inherit) return profile.endpoint;
+        const auto group = dataManager->groupsRepo->GetGroup(profile.gid);
+        return group != nullptr ? group->endpoint : EndpointSource{};
+    }
+
+    QString EndpointOverrideBlocker(const std::shared_ptr<Profile> &profile)
+    {
+        switch (generateServerlessReason(profile)) {
+            case GenerateServerless::Missing:
+                return QObject::tr("The profile no longer exists");
+            case GenerateServerless::NoServer:
+                return QObject::tr("%1 profiles have no single server address to replace").arg(profile->type);
+            case GenerateServerless::Realm:
+                return QObject::tr("Hysteria2 realm profiles have no fixed server address to replace");
+            case GenerateServerless::None:
+                break;
+        }
+        return {};
+    }
+
+    namespace {
+        QMutex generateDisplayListsMutex;
+        QHash<int, QString> generateDisplayListHosts;
+    } // namespace
+
+    QString EffectiveEndpointHost(const std::shared_ptr<Profile> &profile)
+    {
+        if (generateServerlessReason(profile) != GenerateServerless::None) return {};
+        const auto source = EffectiveEndpointSource(*profile);
+        if (source.mode == EndpointSource::Mode::Address) return source.address.trimmed();
+        if (source.mode != EndpointSource::Mode::IpList) return {};
+        {
+            QMutexLocker locker(&generateDisplayListsMutex);
+            if (const auto it = generateDisplayListHosts.constFind(source.ipListId); it != generateDisplayListHosts.constEnd())
+                return it.value();
+        }
+        const QString host = ResolveEndpointSource(source).address;
+        QMutexLocker locker(&generateDisplayListsMutex);
+        generateDisplayListHosts.insert(source.ipListId, host);
+        return host;
+    }
+
+    QString DisplayEffectiveAddress(const std::shared_ptr<Profile> &profile)
+    {
+        if (profile == nullptr || profile->outbound == nullptr) return {};
+        if (const auto host = EffectiveEndpointHost(profile); !host.isEmpty()) {
+            if (const auto clone = CloneProfileWithServer(profile, host, 0); clone != nullptr) return clone->outbound->DisplayAddress();
+        }
+        return profile->outbound->DisplayAddress();
+    }
+
+    void InvalidateEndpointDisplayCache()
+    {
+        QMutexLocker locker(&generateDisplayListsMutex);
+        generateDisplayListHosts.clear();
+    }
+
     QString ValidateScanBase(const std::shared_ptr<Profile> &base)
     {
         if (auto blocker = scanBaseBlocker(base); !blocker.isEmpty()) return blocker;
@@ -2866,6 +3031,7 @@ namespace Configs {
 
     ScanTestBuild BuildScanTestConfig(const std::shared_ptr<Profile> &base, const QList<ScanTestTarget> &targets)
     {
+        const GenerateEndpointScope endpointScope;
         ScanTestBuild out;
         if (auto blocker = scanBaseBlocker(base); !blocker.isEmpty()) {
             out.error = blocker;

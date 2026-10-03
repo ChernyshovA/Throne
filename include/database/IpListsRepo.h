@@ -41,6 +41,9 @@ namespace Configs {
 
         [[nodiscard]] std::shared_ptr<IpList> GetIpList(int id) const;
 
+        // No entries and no count (entryCount stays 0).
+        [[nodiscard]] std::shared_ptr<IpList> GetIpListHeader(int id) const;
+
         // Headers only; snapshot lists only with includeHidden.
         [[nodiscard]] QList<std::shared_ptr<IpList>> GetAllIpLists(bool includeHidden = false) const;
 

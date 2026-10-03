@@ -211,7 +211,7 @@ void MainWindow::show_group_tab_menu(const QPoint &p) {
         connect(dialog, &QDialog::finished, this, [=,this] {
             if (dialog->result() == QDialog::Accepted) {
                 Configs::dataManager->groupsRepo->Save(ent);
-                MW_dialog_message(MwMessage::GroupsChanged, {});
+                MW_dialog_message(MwMessage::GroupsChanged, dialog->RestartNeeded() ? QStringList{MwArg::RestartProxy} : QStringList{});
             }
             dialog->deleteLater();
         });

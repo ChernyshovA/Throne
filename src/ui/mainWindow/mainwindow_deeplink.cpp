@@ -354,6 +354,8 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
         break;
     case MwMessage::GroupsChanged:
         refresh_groups();
+        profilesTableModel->invalidateAddresses();
+        if (changed(MwArg::RestartProxy)) noteRestartNeeded(tr("Group"));
         break;
     case MwMessage::SubscriptionFinished:
         refresh_proxy_list({}, true);

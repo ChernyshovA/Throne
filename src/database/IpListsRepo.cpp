@@ -488,6 +488,17 @@ namespace Configs {
         return nullptr;
     }
 
+    std::shared_ptr<IpList> IpListsRepo::GetIpListHeader(int id) const {
+        try {
+            std::lock_guard lock(db.WriteMutex());
+            const auto query = db.queryThrow(kIpListsRepoHeaderSelectUncounted + " WHERE id = ?", id);
+            if (query->executeStep()) return ipListFromRow(*query);
+        } catch (const std::exception &e) {
+            NotifyError("IpListsRepo::GetIpListHeader", e);
+        }
+        return nullptr;
+    }
+
     QList<std::shared_ptr<IpList>> IpListsRepo::GetAllIpLists(bool includeHidden) const {
         QList<std::shared_ptr<IpList>> lists;
         const std::string filter =

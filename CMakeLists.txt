@@ -582,6 +582,7 @@ set(PROJECT_SOURCES
         include/database/entities/OtpProfile.h
         include/database/entities/IpList.h
         include/database/entities/IpScan.h
+        include/database/entities/EndpointSource.h
 
         src/database/entities/Profile.cpp
         src/database/entities/Group.cpp
@@ -589,6 +590,7 @@ set(PROJECT_SOURCES
         src/database/entities/RouteRule.cpp
         src/database/entities/OtpProfile.cpp
         src/database/entities/IpScan.cpp
+        src/database/entities/EndpointSource.cpp
 
         src/database/ProfilesRepo.cpp
         src/database/GroupsRepo.cpp

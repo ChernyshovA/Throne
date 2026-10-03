@@ -1,5 +1,6 @@
 #include <include/database/entities/Group.h>
 
+#include "include/configs/generate.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/global/Configs.hpp"
 #include <QRegularExpression> 
@@ -165,6 +166,12 @@ namespace Configs
                     if (i < 0) i = 99999;
                     return i;
                 };
+                // Resolved once up front: an endpoint source may query the IP lists.
+                QHash<int, QString> addresses;
+                if (sortAction.method == GroupSortMethod::ByAddress) {
+                    for (const auto &profile : dataManager->profilesRepo->GetProfileBatch(profiles))
+                        if (profile != nullptr) addresses.insert(profile->id, DisplayEffectiveAddress(profile));
+                }
                 std::ranges::sort(profiles,
                                   [&](int a, int b) {
                                       auto profA = dataManager->profilesRepo->GetProfile(a);
@@ -178,8 +185,8 @@ namespace Configs
                                           ms_a = profA->outbound->name;
                                           ms_b = profB->outbound->name;
                                       } else if (sortAction.method == GroupSortMethod::ByAddress) {
-                                          ms_a = profA->outbound->DisplayAddress();
-                                          ms_b = profB->outbound->DisplayAddress();
+                                          ms_a = addresses.value(a);
+                                          ms_b = addresses.value(b);
                                       } else if (sortAction.method == GroupSortMethod::BySecurity) {
                                           auto secA = profA->outbound->GetSecurity();
                                           auto secB = profB->outbound->GetSecurity();

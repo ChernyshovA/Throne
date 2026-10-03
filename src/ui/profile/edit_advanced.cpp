@@ -6,8 +6,12 @@
 #include <QInputDialog>
 #include <QNetworkInterface>
 #include <QScreen>
+#include <QStandardItemModel>
 #include <QAbstractSocket>
+#include "include/configs/generate.h"
 #include "include/database/DatabaseManager.h"
+#include "include/database/GroupsRepo.h"
+#include "include/database/IpListsRepo.h"
 #include "include/ui/profile/editor_table_utils.h"
 
 EditAdvanced::InterfaceFields EditAdvanced::GetInterfaceFields() const {
@@ -129,6 +133,12 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         ui->interface_box->hide();
     }
 
+    if (Configs::EndpointOverrideBlocker(ent).isEmpty()) {
+        loadEndpoint();
+    } else {
+        ui->endpoint_box->hide();
+    }
+
     ADD_ASTERISK(this)
 
     // adjustSize() clamps to 2/3 of the screen.
@@ -139,6 +149,59 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
 EditAdvanced::~EditAdvanced()
 {
     delete ui;
+}
+
+void EditAdvanced::loadEndpoint() {
+    using Mode = Configs::EndpointSource::Mode;
+    ui->endpoint_mode->addItem(tr("Inherit from group"), static_cast<int>(Mode::Inherit));
+    ui->endpoint_mode->addItem(tr("Own address"), static_cast<int>(Mode::Own));
+    ui->endpoint_mode->addItem(tr("IP list"), static_cast<int>(Mode::IpList));
+
+    const auto &source = ent->endpoint;
+    for (const auto &list : Configs::dataManager->ipListsRepo->GetAllIpLists()) {
+        ui->endpoint_list->addItem(list->name, list->id);
+    }
+    if (source.mode == Mode::IpList) {
+        // A gone list stays selected, so saving never points the profile at another list by itself.
+        if (ui->endpoint_list->findData(source.ipListId) < 0) ui->endpoint_list->insertItem(0, tr("Missing list"), source.ipListId);
+        ui->endpoint_list->setCurrentIndex(ui->endpoint_list->findData(source.ipListId));
+    }
+    if (auto *model = qobject_cast<QStandardItemModel *>(ui->endpoint_mode->model()); model != nullptr && ui->endpoint_list->count() == 0) {
+        model->item(ui->endpoint_mode->findData(static_cast<int>(Mode::IpList)))->setEnabled(false);
+    }
+    ui->endpoint_mode->setCurrentIndex(qMax(0, ui->endpoint_mode->findData(static_cast<int>(source.mode))));
+
+    connect(ui->endpoint_mode, &QComboBox::currentIndexChanged, this, [this] { syncEndpoint(); });
+    connect(ui->endpoint_list, &QComboBox::currentIndexChanged, this, [this] { syncEndpoint(); });
+    syncEndpoint();
+}
+
+Configs::EndpointSource EditAdvanced::endpointFromUi() const {
+    Configs::EndpointSource source;
+    source.mode = static_cast<Configs::EndpointSource::Mode>(ui->endpoint_mode->currentData().toInt());
+    if (source.mode == Configs::EndpointSource::Mode::IpList) source.ipListId = ui->endpoint_list->currentData().toInt();
+    return source;
+}
+
+void EditAdvanced::syncEndpoint() {
+    using Mode = Configs::EndpointSource::Mode;
+    const auto source = endpointFromUi();
+    ui->endpoint_list->setVisible(source.mode == Mode::IpList);
+
+    Configs::EndpointResolution resolution;
+    if (source.mode == Mode::IpList) {
+        resolution = Configs::ResolveEndpointSource(source);
+    } else if (source.mode == Mode::Inherit) {
+        if (const auto group = Configs::dataManager->groupsRepo->GetGroup(ent->gid)) resolution = Configs::ResolveEndpointSource(group->endpoint);
+    }
+    QString hint;
+    if (!resolution.address.isEmpty()) {
+        hint = tr("Connects to %1 (%2).").arg(resolution.address, resolution.origin);
+    } else if (!resolution.problem.isEmpty()) {
+        hint = tr("%1, so the profile's own address is used.").arg(resolution.problem);
+    }
+    ui->endpoint_hint->setText(hint);
+    ui->endpoint_hint->setHidden(hint.isEmpty());
 }
 
 void EditAdvanced::accept() {
@@ -200,6 +263,8 @@ void EditAdvanced::accept() {
         *fields.udp_filtering = ui->udp_filtering->currentText().trimmed();
         *fields.udp_nat_max = ui->udp_nat_max->text().trimmed().toInt();
     }
+
+    if (!ui->endpoint_box->isHidden()) ent->endpoint = endpointFromUi();
     QDialog::accept();
 }
 

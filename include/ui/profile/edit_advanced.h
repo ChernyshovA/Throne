@@ -42,6 +42,12 @@ private:
 
     [[nodiscard]] InterfaceFields GetInterfaceFields() const;
 
+    void loadEndpoint();
+
+    [[nodiscard]] Configs::EndpointSource endpointFromUi() const;
+
+    void syncEndpoint();
+
     Ui::EditAdvanced *ui;
     std::shared_ptr<Configs::Profile> ent;
 

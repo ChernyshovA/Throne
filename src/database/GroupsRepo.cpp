@@ -38,6 +38,7 @@ namespace Configs {
                 type_sort_by INTEGER NOT NULL DEFAULT 0,
                 sub_options_json TEXT NOT NULL DEFAULT '{}',
                 sub_metadata_json TEXT NOT NULL DEFAULT '{}',
+                endpoint_json TEXT NOT NULL DEFAULT '{}',
                 created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                 updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
             )
@@ -49,6 +50,8 @@ namespace Configs {
             db.exec("ALTER TABLE groups ADD COLUMN sub_options_json TEXT NOT NULL DEFAULT '{}'");
         if (!groupsColumnExists("sub_metadata_json"))
             db.exec("ALTER TABLE groups ADD COLUMN sub_metadata_json TEXT NOT NULL DEFAULT '{}'");
+        if (!groupsColumnExists("endpoint_json"))
+            db.exec("ALTER TABLE groups ADD COLUMN endpoint_json TEXT NOT NULL DEFAULT '{}'");
 
         db.exec(R"(
             CREATE TABLE IF NOT EXISTS groups_order (
@@ -80,6 +83,7 @@ namespace Configs {
         json["sub_metadata"] = group->sub_info.toJson();
         json["sub_last_update"] = static_cast<qint64>(group->sub_last_update);
         json["sub_options"] = group->sub_options.ToJson();
+        json["endpoint"] = group->endpoint.ToJson();
         json["front_proxy_id"] = group->front_proxy_id;
         json["landing_proxy_id"] = group->landing_proxy_id;
         json["column_width"] = QListInt2QJsonArray(group->column_width);
@@ -108,6 +112,7 @@ namespace Configs {
         if (!group->sub_info.valid && !group->info.isEmpty()) group->sub_info = ParseSubUserInfo(group->info);
         group->sub_last_update = json["sub_last_update"].toVariant().toLongLong();
         group->sub_options = SubscriptionOptions::FromJson(json["sub_options"].toObject());
+        group->endpoint = EndpointSource::FromJson(json["endpoint"].toObject());
         group->front_proxy_id = json["front_proxy_id"].toInt();
         group->landing_proxy_id = json["landing_proxy_id"].toInt();
         group->column_width = QJsonArray2QListInt(json["column_width"].toArray());
@@ -132,14 +137,15 @@ namespace Configs {
         QString profilesJson = QString::fromUtf8(profilesDoc.toJson(QJsonDocument::Compact));
         QString subOptionsJson = QString::fromUtf8(QJsonDocument(group->sub_options.ToJson()).toJson(QJsonDocument::Compact));
         QString subMetadataJson = QString::fromUtf8(QJsonDocument(group->sub_info.toJson()).toJson(QJsonDocument::Compact));
+        QString endpointJson = QString::fromUtf8(QJsonDocument(group->endpoint.ToJson()).toJson(QJsonDocument::Compact));
 
         db.exec(R"(
             INSERT INTO groups
             (id, archive, skip_auto_update, auto_clear_unavailable, name, url, info, sub_last_update,
              front_proxy_id, landing_proxy_id,
              column_width_json, profiles_json, scroll_last_profile, test_sort_by, traffic_sort_by, test_items_to_show,
-             type_sort_by, sub_options_json, sub_metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             type_sort_by, sub_options_json, sub_metadata_json, endpoint_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 archive = excluded.archive, skip_auto_update = excluded.skip_auto_update,
                 auto_clear_unavailable = excluded.auto_clear_unavailable, name = excluded.name,
@@ -149,7 +155,7 @@ namespace Configs {
                 scroll_last_profile = excluded.scroll_last_profile, test_sort_by = excluded.test_sort_by,
                 traffic_sort_by = excluded.traffic_sort_by, test_items_to_show = excluded.test_items_to_show,
                 type_sort_by = excluded.type_sort_by, sub_options_json = excluded.sub_options_json,
-                sub_metadata_json = excluded.sub_metadata_json,
+                sub_metadata_json = excluded.sub_metadata_json, endpoint_json = excluded.endpoint_json,
                 updated_at = strftime('%s', 'now')
         )",
             id,
@@ -170,7 +176,8 @@ namespace Configs {
             static_cast<int>(group->test_items_to_show),
             static_cast<int>(group->type_sort_by),
             subOptionsJson.toStdString(),
-            subMetadataJson.toStdString()
+            subMetadataJson.toStdString(),
+            endpointJson.toStdString()
         );
     }
 
@@ -179,7 +186,7 @@ namespace Configs {
             SELECT id, archive, skip_auto_update, auto_clear_unavailable, name, url, info, sub_last_update,
                    front_proxy_id, landing_proxy_id,
                    column_width_json, profiles_json, scroll_last_profile, test_sort_by, traffic_sort_by, test_items_to_show,
-                   type_sort_by, sub_options_json, sub_metadata_json
+                   type_sort_by, sub_options_json, sub_metadata_json, endpoint_json
             FROM groups WHERE id = ?
         )", id);
         if (!query || !query->executeStep()) {
@@ -226,6 +233,10 @@ namespace Configs {
         if (const auto subMetaDoc = QJsonDocument::fromJson(QByteArray(query->getColumn(18).getText()));
             subMetaDoc.isObject()) {
             json["sub_metadata"] = subMetaDoc.object();
+        }
+        if (const auto endpointDoc = QJsonDocument::fromJson(QByteArray(query->getColumn(19).getText()));
+            endpointDoc.isObject()) {
+            json["endpoint"] = endpointDoc.object();
         }
 
         auto group = groupFromJson(json);

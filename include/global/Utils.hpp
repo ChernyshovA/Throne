@@ -52,7 +52,7 @@ enum class MwMessage {
     Raise,
     UpdateShortcuts,
     ProfileChanged,       // arg MwArg::RestartProxy when the saved profile is part of the running config
-    GroupsChanged,
+    GroupsChanged,        // arg MwArg::RestartProxy when the edited group changed what a running profile dials
     SubscriptionFinished, // arg MwArg::Quiet skips the import-count line
     SubscriptionNewGroup,
     // args: { group id, then the id of every profile it deleted or replaced in place }

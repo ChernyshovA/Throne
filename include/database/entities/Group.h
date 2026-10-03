@@ -8,6 +8,7 @@
 
 #include <optional>
 
+#include "include/database/entities/EndpointSource.h"
 #include "include/ui/group/GroupSort.hpp"
 
 namespace Configs
@@ -128,6 +129,8 @@ namespace Configs
         SubscriptionOptions sub_options;
         int front_proxy_id = -1;
         int landing_proxy_id = -1;
+        // Inherit (profiles keep their own addresses), Address or IpList.
+        EndpointSource endpoint;
 
         QList<int> column_width;
         QList<int> calculated_column_width; // memory only, no need to save to db

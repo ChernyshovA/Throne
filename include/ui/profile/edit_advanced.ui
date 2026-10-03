@@ -15,6 +15,51 @@
   </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="0">
+    <widget class="QGroupBox" name="endpoint_box">
+     <property name="title">
+      <string>Server Address</string>
+     </property>
+     <layout class="QVBoxLayout" name="endpoint_layout">
+      <item>
+       <layout class="QHBoxLayout" name="endpoint_row" stretch="0,0,1">
+        <item>
+         <widget class="QComboBox" name="endpoint_mode"/>
+        </item>
+        <item>
+         <widget class="QComboBox" name="endpoint_list"/>
+        </item>
+        <item>
+         <spacer name="endpoint_spacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="endpoint_hint">
+        <property name="textFormat">
+         <enum>Qt::TextFormat::PlainText</enum>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <property name="colorRole" stdset="0">
+         <string notr="true">muted</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="1" column="0">
     <widget class="QGroupBox" name="dial_box">
      <property name="title">
       <string>Dial Fields</string>
@@ -114,7 +159,7 @@
 </layout>
     </widget>
    </item>
-   <item row="3" column="0">
+   <item row="4" column="0">
     <widget class="QGroupBox" name="interface_box">
      <property name="title">
       <string>Interface</string>
@@ -216,7 +261,7 @@
 </layout>
     </widget>
    </item>
-   <item row="4" column="0">
+   <item row="5" column="0">
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>
@@ -226,7 +271,7 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="0">
+   <item row="2" column="0">
     <widget class="QGroupBox" name="tls_box">
      <property name="title">
       <string>TLS</string>
@@ -429,7 +474,7 @@
 </layout>
     </widget>
    </item>
-   <item row="2" column="0">
+   <item row="3" column="0">
     <widget class="QGroupBox" name="quic_box">
      <property name="title">
       <string>QUIC Parameters</string>
@@ -612,6 +657,8 @@
   </layout>
  </widget>
  <tabstops>
+  <tabstop>endpoint_mode</tabstop>
+  <tabstop>endpoint_list</tabstop>
   <tabstop>reuse_addr</tabstop>
   <tabstop>tcp_fast_open</tabstop>
   <tabstop>udp_fragment</tabstop>

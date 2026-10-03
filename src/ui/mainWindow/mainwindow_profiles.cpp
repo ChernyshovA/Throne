@@ -70,13 +70,7 @@ void MainWindow::on_menu_clone_triggered() {
     auto btn = QMessageBox::question(this, tr("Clone"), tr("Clone %1 item(s)").arg(entIDs.count()));
     if (btn != QMessageBox::Yes) return;
 
-    QStringList sls;
-    auto ents = Configs::dataManager->profilesRepo->GetProfileBatch(entIDs);
-    for (const auto &ent: ents) {
-        sls << ent->outbound->ExportJsonLink();
-    }
-
-    Subscription::updater()->ImportText(sls.join("\n"));
+    Subscription::updater()->CloneProfiles(entIDs);
 }
 
 void MainWindow::on_menu_delete_repeat_triggered() {

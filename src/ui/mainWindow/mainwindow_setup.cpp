@@ -413,6 +413,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->runtime_tab->layout()->addWidget(runtimeScroll);
 
     profilesTableModel = new ProfilesTableModel(this);
+    // A profile fed by an IP list shows the list's first entry, which any list change can move.
+    const auto refreshEffectiveAddresses = [this] {
+        Configs::InvalidateEndpointDisplayCache();
+        profilesTableModel->invalidateAddresses();
+    };
+    connect(Scanner::IpListUpdater::instance(), &Scanner::IpListUpdater::listsChanged, this, refreshEffectiveAddresses,
+            Qt::QueuedConnection);
+    connect(Scanner::IpListUpdater::instance(), &Scanner::IpListUpdater::listUpdated, this, refreshEffectiveAddresses,
+            Qt::QueuedConnection);
     profilesFilterModel = new ProfilesFilterProxyModel(this);
     profilesFilterModel->setSourceModel(profilesTableModel);
     ui->profilesTableView->setModel(profilesFilterModel);
@@ -856,7 +865,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         connect(dialog, &QDialog::finished, this, [=,this] {
             if (dialog->result() == QDialog::Accepted) {
                 Configs::dataManager->groupsRepo->Save(ent);
-                MW_dialog_message(MwMessage::GroupsChanged, {});
+                MW_dialog_message(MwMessage::GroupsChanged, dialog->RestartNeeded() ? QStringList{MwArg::RestartProxy} : QStringList{});
             }
             dialog->deleteLater();
         });
