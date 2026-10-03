@@ -37,7 +37,6 @@ private:
         bool needRestart = false;
         bool updateDisableTray = false;
         bool updateTrayIcon = false;
-        bool updateSystemDns = false;
         bool updateMaxLogLines = false;
         bool updateDisableAdmin = false;
     } CACHE;

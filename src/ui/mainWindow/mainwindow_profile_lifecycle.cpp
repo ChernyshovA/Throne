@@ -44,29 +44,6 @@ void MainWindow::setup_rpc(QLocalSocket *socket) {
     }
 }
 
-bool MainWindow::set_system_dns(bool set, bool save_set) {
-    if (!Configs::dataManager->settingsRepo->enable_dns_server) {
-        MW_show_log(tr("You need to enable hijack DNS server first"));
-        return false;
-    }
-    if (!get_elevated_permissions(ExitReason::RestartWithDns)) {
-        return false;
-    }
-    bool rpcOK;
-    QString res;
-    if (set) {
-        res = defaultClient->SetSystemDNS(&rpcOK, false);
-    } else {
-        res = defaultClient->SetSystemDNS(&rpcOK, true);
-    }
-    if (!rpcOK) {
-        MW_show_log(tr("Failed to set system dns: ") + res);
-        return false;
-    }
-    if (save_set) Configs::dataManager->settingsRepo->system_dns_set = set;
-    return true;
-}
-
 int MainWindow::get_profile_to_start() {
     const auto ents = get_now_selected_list();
     if (ents.size() == 1) {
@@ -171,14 +148,6 @@ bool MainWindow::handleXrayGeoAssetError(const QString& error, const QString& co
 
 void MainWindow::profile_start(int _id) {
     if (Configs::dataManager->settingsRepo->prepare_exit) return;
-#ifdef Q_OS_LINUX
-    if (Configs::dataManager->settingsRepo->enable_dns_server && Configs::dataManager->settingsRepo->dns_server_listen_port <= 1024) {
-        if (!get_elevated_permissions()) {
-            MW_show_log(QString("Failed to get admin access, cannot listen on port %1 without it").arg(Configs::dataManager->settingsRepo->dns_server_listen_port));
-            return;
-        }
-    }
-#endif
 
     std::shared_ptr<Configs::Profile> ent = nullptr;
     if (_id >= 0) {

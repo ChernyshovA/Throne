@@ -9,8 +9,6 @@ namespace Icon {
         Running,
         SystemProxy,
         Vpn,
-        Dns,
-        SystemProxyDns,
     };
 
     QIcon GetTrayIcon(TrayIconStatus status);

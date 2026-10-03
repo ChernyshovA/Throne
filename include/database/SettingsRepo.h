@@ -61,8 +61,7 @@ namespace Configs {
         bool flag_tray = false;
         bool flag_debug = false;
         bool flag_restart_tun_on = false;
-        bool flag_dns_set = false;
-        
+
         // Persisted settings.
         QString mainWindowGeometry;
         QString log_level = "info";
@@ -128,7 +127,6 @@ namespace Configs {
         int speed_test_timeout_ms = 5000;
         QString simple_dl_url = "http://cachefly.cachefly.net/1mb.test";
         bool allow_beta_update = false;
-        bool show_system_dns = false;
         bool use_custom_icons = false;
         bool follow_status_in_taskbar = true;
         bool skip_delete_confirmation = false;
@@ -224,17 +222,12 @@ namespace Configs {
         bool fake_dns = false;
         bool fakeip_disable_ipv6 = false;
         bool enable_tun_routing = false;
-#ifdef Q_OS_MACOS
-        QString vpn_implementation = "gvisor";
-        bool vpn_strict_route = false;
-#elif defined(Q_OS_WIN)
-        QString vpn_implementation = WinVersion::IsBuildNumGreaterOrEqual(BuildNumber::Windows_10_1507) ? "system" : "gvisor";
+#ifdef Q_OS_WIN
         bool vpn_strict_route = WinVersion::IsBuildNumGreaterOrEqual(BuildNumber::Windows_10_1507);
 #else
-        QString vpn_implementation = "system";
         bool vpn_strict_route = false;
 #endif
-        // Linux only: newer kernels need `auto_redirect` for the system/mixed stacks to pass traffic, at the cost of acting as a gateway.
+        // Linux only; while on, the host cannot act as a network gateway.
         bool vpn_auto_redirect = true;
         // Only UDP and ICMP reach the bridge: pre-match aborts at the sniff rule for TCP.
         bool vpn_l3_bridge = false;
@@ -269,20 +262,6 @@ namespace Configs {
         QString warp_masque_sni = "consumer-masque.cloudflareclient.com";
         int warp_masque_http_mode = 0; // 0 = HTTP/3 with fallback, 1 = HTTP/3 only, 2 = HTTP/2
         QStringList warp_api_hosts = {}; // registration API domains, tried in order; empty = api.cloudflareclient.com
-
-        // Hijack
-        bool enable_dns_server = false;
-        bool dns_server_listen_lan = false;
-        int dns_server_listen_port = 53;
-        QString dns_v4_resp = "127.0.0.1";
-        QString dns_v6_resp = "::1";
-        QStringList dns_server_rules = {};
-        bool enable_redirect = false;
-        QString redirect_listen_address = "127.0.0.1";
-        int redirect_listen_port = 443;
-
-        // System dns
-        bool system_dns_set = false;
 
         // Hotkey
         QString hotkey_mainwindow = "";

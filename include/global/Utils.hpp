@@ -69,7 +69,6 @@ namespace MwArg {
     inline const QString NeedRestart  = QStringLiteral("needRestart");
     inline const QString ChoosePort   = QStringLiteral("choosePort");
     inline const QString DisableTray  = QStringLiteral("disableTray");
-    inline const QString SystemDns    = QStringLiteral("systemDns");
     inline const QString TrayIcon     = QStringLiteral("trayIcon");
     inline const QString MaxLogLines  = QStringLiteral("maxLogLines");
     inline const QString DisableAdmin = QStringLiteral("disableAdmin");

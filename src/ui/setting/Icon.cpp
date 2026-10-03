@@ -17,8 +17,6 @@ namespace {
             case Icon::TrayIconStatus::Running: return QStringLiteral("Throne");
             case Icon::TrayIconStatus::SystemProxy: return QStringLiteral("Proxy");
             case Icon::TrayIconStatus::Vpn: return QStringLiteral("Tun");
-            case Icon::TrayIconStatus::Dns: return QStringLiteral("Dns");
-            case Icon::TrayIconStatus::SystemProxyDns: return QStringLiteral("Proxy-Dns");
         }
         MW_show_log("Icon::GetTrayIcon: Unknown status");
         return QStringLiteral("Off");

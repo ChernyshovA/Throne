@@ -307,13 +307,6 @@ QToolButton::menu-indicator {
          </widget>
         </item>
         <item>
-         <widget class="QCheckBox" name="system_dns">
-          <property name="text">
-           <string>System DNS</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="QCheckBox" name="checkBox_SystemProxy">
           <property name="text">
            <string>System Proxy</string>

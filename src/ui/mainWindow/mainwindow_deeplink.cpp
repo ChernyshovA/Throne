@@ -295,10 +295,6 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
         if (changed(MwArg::DisableTray)) {
             tray->setVisible(!settings->disable_tray);
         }
-        if (changed(MwArg::SystemDns)) {
-            if (settings->show_system_dns) ui->system_dns->show();
-            else ui->system_dns->hide();
-        }
         if (changed(MwArg::ChoosePort)) {
             settings->inbound_socks_port = MkPort(settings->inbound_address);
             if (settings->spmode_system_proxy) {
@@ -384,15 +380,8 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
             set_spmode_vpn(true, settings->flag_restart_tun_on);
             settings->flag_restart_tun_on = false;
         }
-        if (settings->flag_dns_set) {
-            set_system_dns(true);
-        }
         if (auto id = args.value(0).toInt(); id >= 0) {
             profile_start(id);
-        }
-        if (settings->system_dns_set) {
-            set_system_dns(true);
-            ui->system_dns->setChecked(true);
         }
         refresh_status();
         break;

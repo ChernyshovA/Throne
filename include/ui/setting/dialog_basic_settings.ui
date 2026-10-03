@@ -704,13 +704,6 @@
              </widget>
             </item>
             <item>
-             <widget class="QCheckBox" name="show_sys_dns">
-              <property name="text">
-               <string>Show System DNS option</string>
-              </property>
-             </widget>
-            </item>
-            <item>
              <widget class="QCheckBox" name="disable_tray">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">

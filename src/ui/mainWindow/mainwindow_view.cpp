@@ -214,10 +214,6 @@ void MainWindow::refresh_status(const QString &traffic_update) {
     if (running != nullptr) {
         if (settings->spmode_vpn) {
             icon_status_new = Icon::TrayIconStatus::Vpn;
-        } else if (settings->system_dns_set && settings->spmode_system_proxy) {
-            icon_status_new = Icon::TrayIconStatus::SystemProxyDns;
-        } else if (settings->system_dns_set) {
-            icon_status_new = Icon::TrayIconStatus::Dns;
         } else if (settings->spmode_system_proxy) {
             icon_status_new = Icon::TrayIconStatus::SystemProxy;
         } else {
@@ -247,8 +243,6 @@ void MainWindow::refresh_startstop_button() {
     auto mode = StartStopButton::Mode::Off;
     if (running != nullptr) {
         if (settings->spmode_vpn) mode = StartStopButton::Mode::Tun;
-        else if (settings->system_dns_set && settings->spmode_system_proxy) mode = StartStopButton::Mode::SystemProxyDns;
-        else if (settings->system_dns_set) mode = StartStopButton::Mode::Dns;
         else if (settings->spmode_system_proxy) mode = StartStopButton::Mode::SystemProxy;
         else mode = StartStopButton::Mode::Core;
     }

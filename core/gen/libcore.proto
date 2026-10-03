@@ -14,8 +14,6 @@ service LibcoreService {
   rpc QueryConnections(EmptyReq) returns (QueryConnectionsResp);
   rpc CloseConnections(CloseConnectionsRequest) returns (CloseConnectionsResponse);
   //
-  rpc SetSystemDNS(SetSystemDNSRequest) returns (EmptyResp);
-  //
   rpc IsPrivileged(EmptyReq) returns (IsPrivilegedResponse);
   //
   rpc GetDefaultInterface(EmptyReq) returns (GetDefaultInterfaceResponse);
@@ -245,10 +243,6 @@ message CloseConnectionsRequest {
 message CloseConnectionsResponse {
   optional int32 closed = 1 [default = 0];
   optional string error = 2 [default = ""];
-}
-
-message SetSystemDNSRequest {
-  optional bool clear = 1 [default = false];
 }
 
 message IsPrivilegedResponse {

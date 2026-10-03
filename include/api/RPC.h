@@ -38,8 +38,6 @@ namespace API {
 
         libcore::QueryIPTestResponse QueryIPTest(bool *rpcOK);
 
-        QString SetSystemDNS(bool *rpcOK, bool clear) const;
-
         [[nodiscard]] libcore::QueryConnectionsResp QueryConnections() const;
 
         // Ids already gone are a no-op; closedCount (optional) receives how many were actually live.

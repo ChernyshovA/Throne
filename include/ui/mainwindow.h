@@ -93,7 +93,6 @@ enum class ExitReason {
     RunUpdater,
     Restart,
     RestartWithTun,
-    RestartWithDns,
 };
 
 class MainWindow : public QMainWindow {
@@ -141,7 +140,7 @@ public:
 
     void set_spmode_vpn(bool enable, bool save = true);
 
-    bool get_elevated_permissions(ExitReason reason = ExitReason::RestartWithTun);
+    bool get_elevated_permissions();
 
     void start_select_mode(QObject *context, const std::function<void(int)> &callback);
 
@@ -510,10 +509,6 @@ private:
     // Survives the restart the recovery itself triggers, so a rejected retry cannot loop.
     QHash<int, int> m_vpnAuthPrompted;
     int m_vpnAuthRestartID = -1;
-
-    bool set_system_dns(bool set, bool save_set = true);
-
-    void showHijackDeprecationNotice();
 
     void CheckUpdate();
 

@@ -127,7 +127,6 @@ var handlers = map[string]handlerFn{
 	"QueryAutoSelectors":  handle(globalServer.QueryAutoSelectors),
 	"AutoSelectorAction":  handle(globalServer.AutoSelectorAction),
 	"IsPrivileged":        handle(globalServer.IsPrivileged),
-	"SetSystemDNS":        handle(globalServer.SetSystemDNS),
 	"GetDefaultInterface": handle(globalServer.GetDefaultInterface),
 	"SpeedTest":           handle(globalServer.SpeedTest),
 	"QuerySpeedTest":      handle(globalServer.QuerySpeedTest),

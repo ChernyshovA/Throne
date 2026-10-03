@@ -59,8 +59,6 @@ namespace Configs {
             constexpr auto dnsIn = "dns-in";
             constexpr auto mixedIn = "mixed-in";
             constexpr auto tunIn = "tun-in";
-            constexpr auto redirectIn = "hijack";
-            constexpr auto dnsServerIn = "hijack-dns";
             constexpr auto xrayFullConfigIn = "throne-bridge";
 
             constexpr auto adblockRuleSet = "throne-adblocksingbox";
@@ -167,7 +165,6 @@ namespace Configs {
 
         struct BuildPrerequisites {
             DNSDeps dns;
-            DomainSelectors hijack;
             TunDeps tun;
             RoutingDeps routing;
         };
@@ -804,13 +801,6 @@ namespace Configs {
                 }
             }
 
-            if (settings.enable_dns_server) {
-                parseSelectorList(settings.dns_server_rules, sinkFor(preReqs.hijack));
-            }
-            for (auto ruleSet : preReqs.hijack.ruleSets) {
-                if (!preReqs.routing.neededRuleSets.contains(ruleSet.toString())) preReqs.routing.neededRuleSets.append(ruleSet.toString());
-            }
-
             parseSelectorList(routeChain->get_direct_ips(), {
                 .ruleSets = &preReqs.tun.directIPSets,
                 .ipCIDRs = &preReqs.tun.directIPCIDRs,
@@ -967,7 +957,6 @@ namespace Configs {
             }
 
             const auto &dns = ctx.prerequisites.dns;
-            const auto &hijack = ctx.prerequisites.hijack;
             bool isTailscale = ctx.ent->type == "tailscale";
             bool independentCache = false;
             QJsonArray servers;
@@ -1103,40 +1092,6 @@ namespace Configs {
                                tags::dnsDirect, settings.direct_dns_disable_ipv6);
             }
 
-            if (settings.enable_dns_server && !ctx.forTest)
-            {
-                // Own rule per rule_set (AND-vs-OR); the non-empty guards stop a query_type-only rule hijacking everything.
-                auto addHijackRules = [&](const QJsonObject &conditions) {
-                    auto v4 = conditions;
-                    v4["query_type"] = "A";
-                    v4["action"] = "predefined";
-                    v4["rcode"] = "NOERROR";
-                    v4["answer"] = QString("*. IN A %1").arg(settings.dns_v4_resp);
-                    rules += v4;
-
-                    if (settings.dns_v6_resp.isEmpty()) return;
-                    auto v6 = conditions;
-                    v6["query_type"] = "AAAA";
-                    v6["action"] = "predefined";
-                    v6["rcode"] = "NOERROR";
-                    v6["answer"] = QString("*. IN AAAA %1").arg(settings.dns_v6_resp);
-                    rules += v6;
-                };
-
-                if (!hijack.ruleSets.isEmpty())
-                {
-                    addHijackRules(QJsonObject{{"rule_set", hijack.ruleSets}});
-                }
-                if (!hijack.domains.isEmpty() || !hijack.suffixes.isEmpty() || !hijack.regexes.isEmpty())
-                {
-                    addHijackRules(QJsonObject{
-                                {"domain", hijack.domains},
-                                {"domain_suffix", hijack.suffixes},
-                                {"domain_regex", hijack.regexes},
-                            });
-                }
-            }
-
             if (settings.fake_dns) {
                 QJsonObject fakeServer{
                         {"tag", tags::dnsFake},
@@ -1234,7 +1189,6 @@ namespace Configs {
                 inboundObj["interface_name"] = genTunName();
                 inboundObj["auto_route"] = true;
                 inboundObj["mtu"] = settings.vpn_mtu;
-                inboundObj["stack"] = settings.vpn_implementation;
                 inboundObj["strict_route"] = settings.vpn_strict_route;
                 if (ctx.os == Linux && settings.vpn_auto_redirect) inboundObj["auto_redirect"] = true;
                 const auto tunIPv4CIDR = settings.vpn_tun_ipv4_cidr;
@@ -1258,7 +1212,7 @@ namespace Configs {
                     for (auto item: tun.directIPSets) routeExcludeSets << item;
                 }
 
-                // On macOS a bypass covering the Tun subnet black-holes the system DNS and the system stack's replies (#1738).
+                // On macOS a bypass covering the Tun subnet black-holes the system DNS (#1738).
                 if (ctx.os == Darwin) {
                     excludedRanges = subtractPrefix(excludedRanges, tunIPv4CIDR);
                     if (settings.vpn_ipv6) excludedRanges = subtractPrefix(excludedRanges, tunIPv6CIDR);
@@ -1275,23 +1229,6 @@ namespace Configs {
                 {"listen", "127.0.0.1"},
                 {"listen_port", settings.core_dns_in_port}
             });
-
-            if (settings.enable_redirect) {
-                inbounds.prepend(QJsonObject{
-                    {"tag", tags::redirectIn},
-                    {"type", "direct"},
-                    {"listen", settings.redirect_listen_address},
-                    {"listen_port", settings.redirect_listen_port},
-                });
-            }
-            if (settings.enable_dns_server) {
-                inbounds.prepend(QJsonObject{
-                    {"tag", tags::dnsServerIn},
-                    {"type", "direct"},
-                    {"listen", settings.dns_server_listen_lan ? "0.0.0.0" : "127.1.1.1"},
-                    {"listen_port", settings.dns_server_listen_port},
-                });
-            }
 
             QJSONARRAY_ADD(inbounds, QString2QJsonObject(settings.custom_inbound)["inbounds"].toArray())
             ctx.result->coreConfig["inbounds"] = inbounds;
@@ -2094,7 +2031,6 @@ namespace Configs {
                 QJsonObject resolve;
                 QJsonObject dnsHijack;
                 QJsonObject dnsInReject;
-                QJsonObject redirectSniff;
             } injected;
 
             if (!routeChain->isRaw) {
@@ -2110,13 +2046,6 @@ namespace Configs {
                     {"protocol", "dns"},
                     {"action", "hijack-dns"},
                 };
-                if (settings.enable_redirect && !ctx.forTest) {
-                    injected.redirectSniff = QJsonObject{
-                        {"inbound", QJsonArray{tags::redirectIn}},
-                        {"action", "sniff"},
-                        {"override_destination", true},
-                    };
-                }
             }
             if (!ctx.forTest) {
                 injected.dnsInReject = QJsonObject{
@@ -2216,7 +2145,6 @@ namespace Configs {
             appendIfSet(injected.resolve);
             appendIfSet(injected.dnsHijack);
             appendIfSet(injected.dnsInReject);
-            appendIfSet(injected.redirectSniff);
             for (const auto& r : profileRules) routeRules.append(r);
             for (const auto& r : vpnAuxRules) routeRules.append(r);
             for (const auto& r : l3BridgeFinalRules) routeRules.append(r);

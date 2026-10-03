@@ -141,8 +141,6 @@ QColor StartStopButton::modeColor(Mode m) const {
         case Mode::Core: return {0x2E, 0xA0, 0x51};          // green
         case Mode::SystemProxy: return {0x37, 0x9B, 0xFF};   // blue
         case Mode::Tun: return {0x9C, 0x1A, 0x1A};           // crimson red
-        case Mode::Dns: return {0xC8, 0x96, 0x00};           // dark gold
-        case Mode::SystemProxyDns: return {0x7A, 0x82, 0xFF}; // indigo
         case Mode::Off:
         default: return idleRingColor();
     }

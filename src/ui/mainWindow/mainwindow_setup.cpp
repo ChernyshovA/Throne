@@ -803,15 +803,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         set_spmode_vpn(false);
     });
     connect(ui->menu_qr, &QAction::triggered, this, [=,this]() { display_qr_link(false); });
-    connect(ui->system_dns, &QCheckBox::clicked, this, [=,this](bool checked) {
-        if (const auto ok = set_system_dns(checked); !ok) {
-            ui->system_dns->setChecked(!checked);
-        } else {
-            refresh_status();
-        }
-    });
-    if (Configs::dataManager->settingsRepo->show_system_dns) ui->system_dns->show();
-    else ui->system_dns->hide();
 
     connect(ui->menu_server, &QMenu::aboutToShow, this, [=,this](){
         if (auto selected = get_now_selected_list(); selected.empty())
@@ -1162,8 +1153,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     if (!Configs::dataManager->settingsRepo->flag_tray) show();
     else if (tray->isVisible()) HideWindow(this);
-    // Deferred: GetMessageBoxParent() falls back to the mainwindow global, which is only set once this constructor returns.
-    QTimer::singleShot(0, this, &MainWindow::showHijackDeprecationNotice);
 
     ui->data_view->setStyleSheet("background: transparent; border: none;");
 

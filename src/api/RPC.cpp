@@ -478,20 +478,6 @@ namespace API {
         }
     }
 
-    QString Client::SetSystemDNS(bool *rpcOK, const bool clear) const {
-        libcore::SetSystemDNSRequest request{clear};
-        std::vector<uint8_t> resp;
-        auto status = channel->Call("SetSystemDNS", spb::pb::serialize<std::string>(request), resp);
-
-        if (status == LocalSocketChannel::CallOK) {
-            *rpcOK = true;
-            return "";
-        } else {
-            NOT_OK
-            return "IPC error";
-        }
-    }
-
     libcore::QueryConnectionsResp Client::QueryConnections() const
     {
         libcore::EmptyReq request;

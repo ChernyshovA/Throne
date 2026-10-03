@@ -19,7 +19,7 @@ public:
     Q_ENUM(State)
 
     // Mirrors the tray-icon modes computed in MainWindow::refresh_status.
-    enum class Mode { Off, Core, SystemProxy, Tun, Dns, SystemProxyDns };
+    enum class Mode { Off, Core, SystemProxy, Tun };
     Q_ENUM(Mode)
 
     explicit StartStopButton(QWidget *parent = nullptr);

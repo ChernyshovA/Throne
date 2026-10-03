@@ -147,14 +147,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
 
     ui->connection_statistics->setChecked(Configs::dataManager->settingsRepo->enable_stats);
     ui->disable_traffic_aggregation->setChecked(Configs::dataManager->settingsRepo->disable_traffic_aggregation);
-    ui->show_sys_dns->setChecked(Configs::dataManager->settingsRepo->show_system_dns);
-    connect(ui->show_sys_dns, &QCheckBox::stateChanged, this, [=]
-    {
-        CACHE.updateSystemDns = true;
-    });
-#ifndef Q_OS_WIN
-    ui->show_sys_dns->hide();
-#endif
     D_LOAD_BOOL(start_minimal)
     ui->skip_delete_confirm->setChecked(Configs::dataManager->settingsRepo->skip_delete_confirmation);
     D_LOAD_BOOL(show_config_security)
@@ -443,7 +435,6 @@ void DialogBasicSettings::accept() {
     bool profileListDisplayChanged =
         Configs::dataManager->settingsRepo->show_config_security != ui->show_config_security->isChecked();
     D_SAVE_BOOL(show_config_security)
-    Configs::dataManager->settingsRepo->show_system_dns = ui->show_sys_dns->isChecked();
 
     if (Configs::dataManager->settingsRepo->max_log_line <= 0) {
         Configs::dataManager->settingsRepo->max_log_line = 200;
@@ -494,7 +485,6 @@ void DialogBasicSettings::accept() {
     QStringList changes;
     if (CACHE.needRestart) changes << MwArg::NeedRestart;
     if (CACHE.updateDisableTray) changes << MwArg::DisableTray;
-    if (CACHE.updateSystemDns) changes << MwArg::SystemDns;
     if (CACHE.updateTrayIcon) changes << MwArg::TrayIcon;
     if (CACHE.updateMaxLogLines) changes << MwArg::MaxLogLines;
     if (CACHE.updateDisableAdmin) changes << MwArg::DisableAdmin;
