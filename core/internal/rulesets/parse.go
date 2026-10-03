@@ -3,7 +3,6 @@ package rulesets
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"net/netip"
 
 	"github.com/sagernet/sing-box/common/srs"
@@ -74,34 +73,16 @@ func collectRule(builder *netipx.IPSetBuilder, rule option.HeadlessRule) (int, e
 		if options.Invert {
 			return 1, nil
 		}
-		// Binary rule-sets carry a range set; JSON sources carry the strings.
+		// Binary rule-sets carry a range set; JSON sources carry the prefixes.
 		if options.IPSet != nil {
-			for _, r := range options.IPSet.Ranges() {
-				builder.AddRange(r)
-			}
+			builder.AddSet(options.IPSet.IPSet())
 			return 0, nil
 		}
-		for _, text := range options.IPCIDR {
-			prefix, ok := parseRulePrefix(text)
-			if !ok {
-				return 0, fmt.Errorf("invalid ip_cidr %q", text)
-			}
-			builder.AddPrefix(prefix)
+		for _, prefix := range options.IPCIDR {
+			builder.AddPrefix(unmapPrefix(prefix.Build(netip.Prefix{})).Masked())
 		}
 		return 0, nil
 	}
-}
-
-func parseRulePrefix(text string) (netip.Prefix, bool) {
-	if prefix, err := netip.ParsePrefix(text); err == nil {
-		return unmapPrefix(prefix).Masked(), true
-	}
-	addr, err := netip.ParseAddr(text)
-	if err != nil {
-		return netip.Prefix{}, false
-	}
-	addr = addr.WithZone("")
-	return unmapPrefix(netip.PrefixFrom(addr, addr.BitLen())), true
 }
 
 func unmapPrefix(prefix netip.Prefix) netip.Prefix {

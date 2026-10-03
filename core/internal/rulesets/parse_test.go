@@ -3,13 +3,22 @@ package rulesets
 import (
 	"bytes"
 	"errors"
+	"net/netip"
 	"slices"
 	"testing"
 
 	"github.com/sagernet/sing-box/common/srs"
 	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing/common"
+	"github.com/sagernet/sing/common/json/badoption"
 )
+
+func prefixes(cidrs ...string) badoption.Listable[*badoption.Prefixable] {
+	return common.Map(cidrs, func(it string) *badoption.Prefixable {
+		return common.Ptr(badoption.Prefixable(netip.MustParsePrefix(it)))
+	})
+}
 
 func defaultRule(rule option.DefaultHeadlessRule) option.HeadlessRule {
 	return option.HeadlessRule{Type: C.RuleTypeDefault, DefaultOptions: rule}
@@ -21,15 +30,15 @@ func logicalRule(mode string, invert bool, rules ...option.HeadlessRule) option.
 
 func sampleRules() option.PlainRuleSet {
 	return option.PlainRuleSet{Rules: []option.HeadlessRule{
-		defaultRule(option.DefaultHeadlessRule{IPCIDR: []string{"10.0.0.0/24", "10.0.1.0/24", "1.1.1.1/32", "2001:db8::/32"}}),
-		defaultRule(option.DefaultHeadlessRule{IPCIDR: []string{"10.0.0.128/25"}, SourceIPCIDR: []string{"172.16.0.0/12"}}),
-		defaultRule(option.DefaultHeadlessRule{IPCIDR: []string{"8.8.8.0/24"}, Invert: true}),
+		defaultRule(option.DefaultHeadlessRule{IPCIDR: prefixes("10.0.0.0/24", "10.0.1.0/24", "1.1.1.1/32", "2001:db8::/32")}),
+		defaultRule(option.DefaultHeadlessRule{IPCIDR: prefixes("10.0.0.128/25"), SourceIPCIDR: prefixes("172.16.0.0/12")}),
+		defaultRule(option.DefaultHeadlessRule{IPCIDR: prefixes("8.8.8.0/24"), Invert: true}),
 		logicalRule(C.LogicalTypeOr, false,
-			defaultRule(option.DefaultHeadlessRule{IPCIDR: []string{"9.9.9.9/32"}}),
+			defaultRule(option.DefaultHeadlessRule{IPCIDR: prefixes("9.9.9.9/32")}),
 			defaultRule(option.DefaultHeadlessRule{Domain: []string{"example.com"}}),
 		),
 		logicalRule(C.LogicalTypeAnd, false,
-			defaultRule(option.DefaultHeadlessRule{IPCIDR: []string{"4.4.4.0/24"}}),
+			defaultRule(option.DefaultHeadlessRule{IPCIDR: prefixes("4.4.4.0/24")}),
 			defaultRule(option.DefaultHeadlessRule{Port: []uint16{443}}),
 		),
 	}}

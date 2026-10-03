@@ -65,14 +65,11 @@ func tunnelResolvingDial(dialCtx context.Context, outbound adapter.Outbound) fun
 
 func lookupThroughTunnel(ctx context.Context, dialer N.Dialer, host string) ([]netip.Addr, error) {
 	transports := make([]*transport.UDPTransport, 0, len(tunnelResolvers))
-	defer func() {
-		for _, server := range transports {
-			_ = server.Close()
-		}
-	}()
+	scope := adapter.NewScope(ctx, logger.NOP())
+	defer scope.Close()
 	for _, server := range tunnelResolvers {
 		udp := transport.NewUDPRaw(logger.NOP(), dns.NewTransportAdapter(C.DNSTypeUDP, "", nil), dialer, server)
-		if err := udp.Start(adapter.StartStateStart); err != nil {
+		if err := udp.Start(adapter.StartStateStart, scope); err != nil {
 			return nil, err
 		}
 		transports = append(transports, udp)
