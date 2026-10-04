@@ -188,8 +188,8 @@ namespace Configs
                                           ms_a = addresses.value(a);
                                           ms_b = addresses.value(b);
                                       } else if (sortAction.method == GroupSortMethod::BySecurity) {
-                                          auto secA = profA->outbound->GetSecurity();
-                                          auto secB = profB->outbound->GetSecurity();
+                                          auto secA = profA->outbound->EffectiveSecurity();
+                                          auto secB = profB->outbound->EffectiveSecurity();
                                           if (secA.level != secB.level) {
                                               return sortAction.descending ? secA.level > secB.level
                                                                            : secA.level < secB.level;

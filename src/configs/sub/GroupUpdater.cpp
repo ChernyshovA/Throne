@@ -312,7 +312,7 @@ namespace Subscription {
             }
             if (options.remove_insecure) {
                 collect(QObject::tr("Removed %1 insecure profiles:"),
-                        [](const std::shared_ptr<Configs::Profile> &ent) { return ent->outbound->GetSecurity().isDangerous(); });
+                        [](const std::shared_ptr<Configs::Profile> &ent) { return ent->outbound->EffectiveSecurity().isInsecure(); });
             }
             if (options.remove_invalid) {
                 QList<std::shared_ptr<Configs::Profile>> unchecked;
