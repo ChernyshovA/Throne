@@ -14,6 +14,7 @@
 #include "include/database/SettingsRepo.h"
 #include "include/global/LocalNetwork.hpp"
 #include "include/stats/autoselector/AutoSelectorMonitor.hpp"
+#include "include/sys/KillSwitch.hpp"
 #include "include/ui/setting/Icon.hpp"
 #include "include/ui/stats/dialog_auto_selector.h"
 #include "include/ui/utils/ProfilesTableFilterHeader.h"
@@ -186,6 +187,7 @@ void MainWindow::refresh_status(const QString &traffic_update) {
 
     const auto route = Configs::dataManager->routesRepo->GetRouteProfile(settings->current_route_id);
     const QString activeRouteName = (route && route->name != "Default") ? route->name : "";
+    const auto killSwitchState = Sys::KillSwitch::instance()->state();
 
     auto make_title = [=,this](bool isTray) {
         QStringList tt;
@@ -195,6 +197,8 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         if (settings->spmode_vpn && !settings->spmode_system_proxy) tt << "[Tun]";
         if (!settings->spmode_vpn && settings->spmode_system_proxy) tt << "[" + tr("System Proxy") + "]";
         if (settings->spmode_vpn && settings->spmode_system_proxy) tt << "[Tun+" + tr("System Proxy") + "]";
+        if (settings->kill_switch && killSwitchState == Sys::KillSwitch::State::Armed) tt << "[" + tr("Kill switch") + "]";
+        if (settings->kill_switch && killSwitchState == Sys::KillSwitch::State::Failed) tt << "[" + tr("Kill switch: not active") + "]";
         tt << software_name;
         if (!isTray) tt << QString(NKR_VERSION);
         if (!activeRouteName.isEmpty()) {
@@ -255,6 +259,19 @@ void MainWindow::refresh_startstop_button() {
     else if (get_profile_to_start() >= 0) state = StartStopButton::State::Idle;
     else state = StartStopButton::State::Disabled;
     btn->setState(state);
+
+    auto lock = StartStopButton::Lock::Hidden;
+    if (settings->kill_switch) {
+        switch (Sys::KillSwitch::instance()->state()) {
+            case Sys::KillSwitch::State::Disabled: break;
+            case Sys::KillSwitch::State::Arming: lock = StartStopButton::Lock::Pending; break;
+            case Sys::KillSwitch::State::Armed:
+                lock = running != nullptr && settings->spmode_vpn ? StartStopButton::Lock::Passing : StartStopButton::Lock::Blocking;
+                break;
+            case Sys::KillSwitch::State::Failed: lock = StartStopButton::Lock::Fault; break;
+        }
+    }
+    btn->setLock(lock);
 }
 
 void MainWindow::update_traffic_graph(int proxyDl, int proxyUp, int directDl, int directUp)

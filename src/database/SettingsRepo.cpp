@@ -55,6 +55,7 @@ namespace Configs {
             {"disable_privilege_req",         &disable_privilege_req},
             {"enable_tun_routing",            &enable_tun_routing},
             {"use_mozilla_certs",             &use_mozilla_certs},
+            {"kill_switch",                   &kill_switch},
             {"allow_beta_update",             &allow_beta_update},
             {"adblock_enable",                &adblock_enable},
             {"use_custom_icons",              &use_custom_icons},

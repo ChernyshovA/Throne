@@ -2,6 +2,7 @@ package netmon
 
 import (
 	"fmt"
+	"os"
 
 	tun "github.com/sagernet/sing-tun"
 	"github.com/sagernet/sing/common/control"
@@ -16,6 +17,10 @@ var (
 )
 
 func init() {
+	// The kill switch guard is this same binary and its stdout is a line protocol.
+	if len(os.Args) > 1 && os.Args[1] == "--guard" {
+		return
+	}
 	nop := logger.NOP()
 	updMonitor, err := tun.NewNetworkUpdateMonitor(nop)
 	if err != nil {

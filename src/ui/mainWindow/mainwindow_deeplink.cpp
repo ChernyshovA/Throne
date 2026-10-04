@@ -17,6 +17,7 @@
 #include "include/database/RoutesRepo.h"
 #include "include/global/PeriodicRunner.hpp"
 #include "include/sys/AutoRun.hpp"
+#include "include/sys/KillSwitch.hpp"
 #include "include/ui/mainWindow/MainWindowInternal.h"
 #include "include/ui/setting/Icon.hpp"
 #include "include/ui/utils/ProfilesTableModel.h"
@@ -313,6 +314,7 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
         }
         auto suggestRestartProxy = settings->Save();
         Throne::PeriodicRunner::instance()->CheckNow();
+        if (changed(MwArg::KillSwitch) || changed(MwArg::Vpn)) Sys::KillSwitch::instance()->apply();
         if (changed(MwArg::Route)) {
             settings->Save();
             suggestRestartProxy = true;
@@ -372,7 +374,10 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
         profile_stop();
         break;
     case MwMessage::CoreStarted:
+        m_guardCoreRestart.invalidate();
         Configs::IsAdmin(true);
+        // The core may just have been given root, which the guard needs too.
+        if (Sys::KillSwitch::instance()->failedForPrivileges()) Sys::KillSwitch::instance()->apply();
         if (settings->remember_enable && settings->remember_system_proxy) {
             set_spmode_system_proxy(true, false);
         }

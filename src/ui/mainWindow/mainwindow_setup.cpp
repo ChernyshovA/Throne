@@ -15,6 +15,7 @@
 #include "include/scanner/ScanManager.h"
 #include "include/stats/autoselector/AutoSelectorMonitor.hpp"
 #include "include/ui/stats/dialog_auto_selector.h"
+#include "include/sys/KillSwitch.hpp"
 #include "include/sys/Process.hpp"
 #include "include/sys/AutoRun.hpp"
 #include "include/sys/UrlScheme.hpp"
@@ -235,6 +236,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         MW_dialog_message(MwMessage::CoreStarted, {Int2String(profileId)});
     });
 
+    // Must precede the first CoreStarted, or a remembered profile would start before the guard is even arming.
+    Sys::KillSwitch::instance()->apply();
+
     auto socketFullName = core_server->fullServerName();
     runOnThread(
         [=, this] {
@@ -272,6 +276,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         if (running != nullptr) profile_stop(false, false, true);
         else profile_start();
     });
+    ui->toolButton_startstop->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->toolButton_startstop, &QWidget::customContextMenuRequested, this, [this] { show_startstop_menu(); });
     connect(ui->tabWidget->tabBar(), &QTabBar::tabMoved, this, [=,this](int from, int to) {
         QList<int> tabOrder;
         for (int i = 0; i < ui->tabWidget->tabBar()->count(); i++) {
@@ -1153,6 +1159,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     if (!Configs::dataManager->settingsRepo->flag_tray) show();
     else if (tray->isVisible()) HideWindow(this);
+
+    // Connected only now: the handler refreshes the tray and views, which do not exist when apply() first runs above.
+    connect(Sys::KillSwitch::instance(), &Sys::KillSwitch::stateChanged, this, [this] { kill_switch_state_changed(); });
+    QTimer::singleShot(0, this, [this] { kill_switch_state_changed(); });
 
     ui->data_view->setStyleSheet("background: transparent; border: none;");
 

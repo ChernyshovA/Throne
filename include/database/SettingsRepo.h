@@ -165,6 +165,7 @@ namespace Configs {
         QString utlsFingerprint = "";
         bool disable_run_admin = false; // windows only
         bool use_mozilla_certs = false;
+        bool kill_switch = false;
 
         // Remember
         bool remember_system_proxy = false;

@@ -1937,9 +1937,11 @@ namespace Configs {
             });
 
             if (ctx.l3Bridge) {
+                // The Linux kill switch recognises the bridge tun by this name prefix.
                 ctx.outbounds.append(QJsonObject{
                 {"type", "bridge"},
-                {"tag", tags::l3Direct}
+                {"tag", tags::l3Direct},
+                {"bridge_name", "throne-br"}
                 });
             }
 

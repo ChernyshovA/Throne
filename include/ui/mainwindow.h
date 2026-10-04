@@ -58,6 +58,7 @@ namespace Configs {
     enum simpleAction : int;
 }
 
+class QMessageBox;
 class TrayProfileSelector;
 class TrayOtpCodes;
 class GlobalHotkeys;
@@ -93,6 +94,7 @@ enum class ExitReason {
     RunUpdater,
     Restart,
     RestartWithTun,
+    RestartElevated,
 };
 
 class MainWindow : public QMainWindow {
@@ -488,6 +490,30 @@ private:
     void reset_vpn_endpoint_tracking();
 
     void clear_vpn_credential_overrides();
+
+    void kill_switch_state_changed();
+
+    void show_kill_switch_problem();
+
+    void show_startstop_menu();
+
+    void confirm_disable_kill_switch();
+
+    void disable_kill_switch();
+
+    // Linux/macOS: a core started before the kill switch was on has not adopted the guard group.
+    bool core_lacks_guard_identity();
+
+    bool guard_core_restart_pending() const;
+
+    // The restarted core starts startId through CoreStarted; a start requested meanwhile replaces it.
+    void restart_core_for_guard(int startId);
+
+    QPointer<QMessageBox> m_killSwitchDialog;
+    bool m_killSwitchWasFailed = false;
+    bool m_killSwitchWasArmed = false;
+    int m_killSwitchDeferredStart = -1;
+    QElapsedTimer m_guardCoreRestart;
 
     QTimer *m_vpnChallengeTimer = nullptr;
     std::atomic<bool> m_vpnChallengeBusy{false};

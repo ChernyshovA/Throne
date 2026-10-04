@@ -158,6 +158,9 @@ set(PROJECT_SOURCES
         include/sys/Process.hpp
         src/sys/Process.cpp
 
+        include/sys/KillSwitch.hpp
+        src/sys/KillSwitch.cpp
+
         include/sys/ProcessMetrics.hpp
         src/sys/ProcessMetrics.cpp
 

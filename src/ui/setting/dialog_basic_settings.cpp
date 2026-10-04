@@ -304,6 +304,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->disable_priv_req->setChecked(Configs::dataManager->settingsRepo->disable_privilege_req);
     ui->windows_no_admin->setChecked(Configs::dataManager->settingsRepo->disable_run_admin);
     ui->mozilla_cert->setChecked(Configs::dataManager->settingsRepo->use_mozilla_certs);
+    D_LOAD_BOOL(kill_switch)
 
     D_LOAD_BOOL(skip_cert)
 
@@ -481,6 +482,8 @@ void DialogBasicSettings::accept() {
     if (Configs::dataManager->settingsRepo->disable_run_admin != ui->windows_no_admin->isChecked()) CACHE.updateDisableAdmin = true;
     Configs::dataManager->settingsRepo->disable_run_admin = ui->windows_no_admin->isChecked();
     Configs::dataManager->settingsRepo->use_mozilla_certs = ui->mozilla_cert->isChecked();
+    const bool killSwitchChanged = Configs::dataManager->settingsRepo->kill_switch != ui->kill_switch->isChecked();
+    D_SAVE_BOOL(kill_switch)
 
     QStringList changes;
     if (CACHE.needRestart) changes << MwArg::NeedRestart;
@@ -490,6 +493,7 @@ void DialogBasicSettings::accept() {
     if (CACHE.updateDisableAdmin) changes << MwArg::DisableAdmin;
     if (needChoosePort) changes << MwArg::ChoosePort;
     if (profileListDisplayChanged) changes << MwArg::ProfileListDisplay;
+    if (killSwitchChanged) changes << MwArg::KillSwitch;
     MW_dialog_message(MwMessage::UpdateSettings, changes);
     QDialog::accept();
 }

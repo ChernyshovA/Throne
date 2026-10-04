@@ -1718,6 +1718,17 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_4">
        <item>
+        <widget class="QCheckBox" name="kill_switch">
+         <property name="toolTip">
+          <string>While Throne is running, block all traffic that does not go through Throne, including when no profile is running.
+The local network stays reachable unless Private Range Bypass is turned off in Tun Settings.</string>
+         </property>
+         <property name="text">
+          <string>Kill Switch</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QCheckBox" name="disable_priv_req">
          <property name="text">
           <string>Disable Privilege request</string>

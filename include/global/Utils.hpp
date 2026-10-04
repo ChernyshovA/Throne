@@ -73,6 +73,7 @@ namespace MwArg {
     inline const QString MaxLogLines  = QStringLiteral("maxLogLines");
     inline const QString DisableAdmin = QStringLiteral("disableAdmin");
     inline const QString ProfileListDisplay = QStringLiteral("profileListDisplay");
+    inline const QString KillSwitch   = QStringLiteral("killSwitch");
     // ProfileChanged arg.
     inline const QString RestartProxy = QStringLiteral("restartProxy");
     // SubscriptionFinished arg.
