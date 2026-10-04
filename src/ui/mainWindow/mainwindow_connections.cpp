@@ -350,6 +350,8 @@ void MainWindow::UpdateConnectionList(const QList<Stats::ConnectionMetadata>& co
     if (connectionsModel == nullptr) return;
     connectionsModel->setConnections(connections, Stats::connection_lister->getSort(), Stats::connection_lister->isSortAscending());
     syncConnectionExpansion();
+    for (const int column : {ConnectionsTreeModel::ColTraffic, ConnectionsTreeModel::ColSpeed})
+        connectionFilterHeader->growSection(column);
 }
 
 void MainWindow::syncConnectionExpansion()
