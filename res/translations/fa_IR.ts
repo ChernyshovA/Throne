@@ -2016,6 +2016,18 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
 <context>
     <name>MainWindow</name>
     <message>
+        <source>Connect</source>
+        <translation>اتصال</translation>
+    </message>
+    <message>
+        <source>Disconnect</source>
+        <translation>قطع اتصال</translation>
+    </message>
+    <message>
+        <source>Disconnecting</source>
+        <translation>در حال قطع اتصال</translation>
+    </message>
+    <message>
         <source>Program</source>
         <translation>برنامه</translation>
     </message>

@@ -8023,6 +8023,18 @@ Improves hole-punching reliability. Requires IPv4.</source>
 <context>
     <name>MainWindow</name>
     <message>
+        <source>Connect</source>
+        <translation>连接</translation>
+    </message>
+    <message>
+        <source>Disconnect</source>
+        <translation>断开连接</translation>
+    </message>
+    <message>
+        <source>Disconnecting</source>
+        <translation>正在断开</translation>
+    </message>
+    <message>
         <location filename="Throne-1.3.1/include/ui/mainwindow.ui" line="55"/>
         <location filename="Throne-1.3.1/include/ui/mainwindow.ui" line="683"/>
         <source>Program</source>
