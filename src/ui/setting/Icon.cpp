@@ -14,6 +14,7 @@ namespace {
     QString statusName(Icon::TrayIconStatus status) {
         switch (status) {
             case Icon::TrayIconStatus::None: return QStringLiteral("Off");
+            case Icon::TrayIconStatus::Connecting: return QStringLiteral("Connecting");
             case Icon::TrayIconStatus::Running: return QStringLiteral("Throne");
             case Icon::TrayIconStatus::SystemProxy: return QStringLiteral("Proxy");
             case Icon::TrayIconStatus::Vpn: return QStringLiteral("Tun");

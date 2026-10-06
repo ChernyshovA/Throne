@@ -6,6 +6,7 @@ namespace Icon {
 
     enum class TrayIconStatus {
         None,
+        Connecting,
         Running,
         SystemProxy,
         Vpn,

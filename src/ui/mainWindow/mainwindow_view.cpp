@@ -225,6 +225,12 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         }
     }
 
+    // A connect/disconnect in progress overrides the steady-state icon so the tray mirrors
+    // the main button's Connecting/Disconnecting state instead of jumping straight on/off.
+    if (m_profileConnecting || m_profileDisconnecting) {
+        icon_status_new = Icon::TrayIconStatus::Connecting;
+    }
+
     setWindowTitle(make_title(false));
     if (icon_status_new != icon_status) QApplication::setWindowIcon(GetTaskbarIcon(icon_status_new));
 
