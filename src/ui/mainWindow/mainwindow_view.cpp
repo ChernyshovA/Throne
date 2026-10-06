@@ -272,6 +272,18 @@ void MainWindow::refresh_startstop_button() {
         }
     }
     btn->setLock(lock);
+
+    if (trayConnectAction != nullptr) {
+        if (m_profileConnecting) {
+            trayConnectAction->setText(tr("Connecting"));
+        } else if (m_profileDisconnecting) {
+            trayConnectAction->setText(tr("Disconnecting"));
+        } else {
+            trayConnectAction->setText(running != nullptr ? tr("Disconnect") : tr("Connect"));
+        }
+        trayConnectAction->setEnabled(!m_profileConnecting && !m_profileDisconnecting &&
+                                      (running != nullptr || get_profile_to_start() >= 0));
+    }
 }
 
 void MainWindow::update_traffic_graph(int proxyDl, int proxyUp, int directDl, int directUp)

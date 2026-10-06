@@ -728,6 +728,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     trayMenu = new QMenu();
     trayMenu->addAction(ui->actionShow_window);
     trayMenu->addSeparator();
+
+    trayConnectAction = new QAction(tr("Connect"), trayMenu);
+    connect(trayConnectAction, &QAction::triggered, this, [this]() {
+        if (running != nullptr) profile_stop(false, false, true);
+        else profile_start();
+    });
+    trayMenu->addAction(trayConnectAction);
+    trayMenu->addSeparator();
+
     trayMenu->addAction(ui->actionStart_with_system);
     trayMenu->addAction(ui->actionRemember_last_proxy);
     trayMenu->addAction(ui->actionAllow_LAN);
