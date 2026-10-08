@@ -1111,7 +1111,8 @@ namespace Configs {
                         {"inet4_range", "198.18.0.0/15"},
                     };
                 // No inet6_range makes the transport answer AAAA empty itself; the rule stays on both types.
-                if (!settings.fakeip_disable_ipv6) fakeServer["inet6_range"] = "fc00::/18";
+                // Not fc00::/18: the Tun's fc00::/7 private-range bypass would route fake addresses outside it.
+                if (!settings.fakeip_disable_ipv6) fakeServer["inet6_range"] = "2001:db8::/32";
                 servers += fakeServer;
                 rules += QJsonObject{
                         {"query_type", QJsonArray{
