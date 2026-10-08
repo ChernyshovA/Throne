@@ -1,6 +1,7 @@
 #include "include/configs/generate.h"
 #include "include/api/RPC.h"
 #include "include/configs/AutoSelectorPlan.h"
+#include "include/configs/common/utils.h"
 #include "include/global/Configs.hpp"
 
 #include <QApplication>
@@ -55,6 +56,7 @@ namespace Configs {
             constexpr auto dnsTailscale = "dns-tailscale";
             constexpr auto dnsHosts = "dns-hosts";
             constexpr auto dnsVpnPrefix = "dns-vpn";
+            constexpr auto dnsEchPrefix = "dns-ech";
 
             constexpr auto dnsIn = "dns-in";
             constexpr auto mixedIn = "mixed-in";
@@ -196,12 +198,15 @@ namespace Configs {
             QMap<QString, QString> vpnEndpointTags;
             QList<QString> vpnGateTags;
             QList<QString> vpnAuxTags;
+            // Names whose HTTPS record a hop's ECH needs to fetch; they must not resolve over the proxy they unlock.
+            QStringList echQueryNames;
             // The main-profile tunnel set to Strict tunnel DNS; its resolvers take every remote query.
             QString vpnStrictTag;
             QList<QString> xrayIngressTags;
             QList<QString> singIngressTags;
             QList<coreBridgeConfig> singToXrayBridges;
             QList<coreBridgeConfig> xrayToSingBridges;
+            QMap<QString, QString> echResolvers;
             std::shared_ptr<BuildConfigResult> result = std::make_shared<BuildConfigResult>();
         };
 
@@ -883,6 +888,7 @@ namespace Configs {
             int port = -1;
             QString type = "udp";
             QString path = "";
+            if (address.startsWith("udp://")) addr = addr.mid(6);
             if (address.startsWith("tcp://")) {
                 type = "tcp";
                 addr = addr.replace("tcp://", "");
@@ -1060,6 +1066,15 @@ namespace Configs {
                 };
             }
 
+            if (!ctx.forTest && !ctx.echQueryNames.isEmpty()) {
+                headRules += QJsonObject{
+                    {"domain", QJsonArray::fromStringList(ctx.echQueryNames)},
+                    {"query_type", QJsonArray{"HTTPS"}},
+                    {"action", "route"},
+                    {"server", tags::dnsDirect},
+                };
+            }
+
             // Strict tunnel DNS takes every query that would otherwise go to dns-remote.
             QString remoteDnsTag = tags::dnsRemote;
             if (!ctx.forTest) {
@@ -1099,7 +1114,8 @@ namespace Configs {
                         {"inet4_range", "198.18.0.0/15"},
                     };
                 // No inet6_range makes the transport answer AAAA empty itself; the rule stays on both types.
-                if (!settings.fakeip_disable_ipv6) fakeServer["inet6_range"] = "fc00::/18";
+                // Not fc00::/18: the Tun's fc00::/7 private-range bypass would route fake addresses outside it.
+                if (!settings.fakeip_disable_ipv6) fakeServer["inet6_range"] = "2001:db8::/32";
                 servers += fakeServer;
                 rules += QJsonObject{
                         {"query_type", QJsonArray{
@@ -1130,6 +1146,23 @@ namespace Configs {
             auto dnsLocalObj = buildDnsObj(ctx, dnsLocalAddress);
             dnsLocalObj["tag"] = tags::dnsLocal;
             servers += dnsLocalObj;
+
+            int echDnsIdx = 0;
+            for (auto it = ctx.echResolvers.cbegin(); it != ctx.echResolvers.cend(); ++it) {
+                const QString tag = hopTag(tags::dnsEchPrefix, echDnsIdx++);
+
+                auto echDnsObj = buildDnsObj(ctx, it.value());
+                echDnsObj["tag"] = tag;
+                echDnsObj["domain_resolver"] = tags::dnsLocal;
+                servers.append(echDnsObj);
+
+                headRules.prepend(QJsonObject{
+                    {"domain", QJsonArray{it.key()}},
+                    {"query_type", QJsonArray{"HTTPS"}},
+                    {"action", "route"},
+                    {"server", tag},
+                });
+            }
 
             if (!headRules.isEmpty()) {
                 for (const auto &rule : rules) headRules.append(rule);
@@ -1359,6 +1392,33 @@ namespace Configs {
             return socksOutbound != nullptr && socksOutbound->version == 4;
         }
 
+        // A resolver buildDnsObj cannot express falls back to dns-direct like an unset one.
+        bool usableEchResolver(const QString &resolver) {
+            if (resolver.isEmpty()) return false;
+            if (!resolver.contains("://")) return true;
+            static const QStringList schemes = {"udp", "tcp", "tls", "https", "quic", "h3"};
+            return schemes.contains(resolver.section("://", 0, 0).toLower());
+        }
+
+        // Without a static config the core fetches the ECH list over DNS first; via dns-remote that dials the same hop.
+        void collectEchQueryName(BuildContext &ctx, const Profile &hop) {
+            if (!hop.outbound->HasTLS()) return;
+            const auto tls = hop.outbound->GetTLS();
+            if (!tls->enabled || !tls->ech->enabled) return;
+            if (!tls->ech->config.isEmpty() || !tls->ech->config_path.isEmpty()) return;
+            // The core queries query_server_name when set, else the TLS server name, else the dial host.
+            QString name = tls->ech->serverName;
+            if (name.isEmpty()) name = tls->server_name;
+            if (name.isEmpty()) name = hop.outbound->server;
+            name = toAceHost(name.trimmed());
+            if (name.isEmpty() || QHostAddress(name).protocol() != QAbstractSocket::UnknownNetworkLayerProtocol) return;
+            if (usableEchResolver(tls->ech->resolver)) {
+                if (!ctx.echResolvers.contains(name)) ctx.echResolvers.insert(name, tls->ech->resolver);
+            } else if (!ctx.echQueryNames.contains(name)) {
+                ctx.echQueryNames << name;
+            }
+        }
+
         void buildSingboxChain(BuildContext &ctx, const QList<std::shared_ptr<Profile>> &ents, const hopChainOptions &opts) {
             for (int idx = 0; idx < ents.size(); idx++)
             {
@@ -1394,6 +1454,7 @@ namespace Configs {
                     return;
                 }
                 object["tag"] = tag;
+                collectEchQueryName(ctx, *ent);
                 // Realm reads its STUN resolver off this key only; without it the hosts go through DNS rules.
                 if (auto hy = ent->Hysteria(); hy != nullptr && hy->RealmActive())
                     object["domain_resolver"] = QJsonObject{{"server", tags::dnsDirect}};
@@ -2649,6 +2710,14 @@ namespace Configs {
         const auto clearTestBuildFlag = qScopeGuard([] { SetBuildingTestConfig(false); });
         BuildContext ctx;
         ctx.forTest = true;
+
+        for (const auto &item : profiles) {
+            if (item == nullptr) continue;
+            for (int hopId : unwrapChain(item->id)) {
+                if (const auto hop = getProfile(hopId); hop != nullptr) collectEchQueryName(ctx, *hop);
+            }
+        }
+
         buildDNSSection(ctx, false);
         if (!ctx.error.isEmpty())
         {
