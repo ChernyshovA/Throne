@@ -909,6 +909,8 @@ namespace Configs {
         } else if (security == "tls") {
             if (!TLS->serverName.isEmpty()) object["sni"] = toAceHost(TLS->serverName);
             if (!TLS->fingerprint.isEmpty()) object["fingerprint"] = TLS->fingerprint;
+            if (!TLS->echConfigList.isEmpty())
+                object["ech"] = TLS->echConfigList.contains("://") ? TLS->echConfigList : QStringLiteral("static");
         }
         return object;
     }

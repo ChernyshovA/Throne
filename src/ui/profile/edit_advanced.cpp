@@ -85,7 +85,7 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         connect(ui->tls_spoof_state, &QComboBox::currentIndexChanged, this, syncSpoofFields);
         syncSpoofFields();
         ui->enable_ech->setChecked(tlsObj->ech->enabled);
-        ui->ech_server_name->setText(tlsObj->ech->serverName);
+        ui->ech_server_name->setText(tlsObj->ech->QueryTarget());
 
         CACHE.echConfig = tlsObj->ech->config;
         CACHE.certSha256 = tlsObj->certificate_sha256;
@@ -231,7 +231,7 @@ void EditAdvanced::accept() {
         tlsObj->spoof = ui->tls_spoof->text().trimmed();
         tlsObj->spoof_method = ui->tls_spoof_method->currentText().trimmed();
         tlsObj->ech->enabled = ui->enable_ech->isChecked();
-        tlsObj->ech->serverName = ui->ech_server_name->text().trimmed();
+        tlsObj->ech->SetQueryTarget(ui->ech_server_name->text());
         tlsObj->ech->config = CACHE.echConfig;
         tlsObj->client_certificate = CACHE.clientCert;
         tlsObj->client_key = CACHE.clientKey;
@@ -277,6 +277,8 @@ void EditAdvanced::editCachedList(QPushButton *button, const QString &title, QSt
 
 void EditAdvanced::on_ech_config_clicked() {
     editCachedList(ui->ech_config, tr("ECH Config"), CACHE.echConfig);
+    CACHE.echConfig = Configs::ECH::NormalizeConfig(CACHE.echConfig);
+    setCacheButtonText(ui->ech_config, CACHE.echConfig);
 }
 
 void EditAdvanced::on_client_cert_clicked() {

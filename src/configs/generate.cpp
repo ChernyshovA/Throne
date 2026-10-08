@@ -56,6 +56,7 @@ namespace Configs {
             constexpr auto dnsTailscale = "dns-tailscale";
             constexpr auto dnsHosts = "dns-hosts";
             constexpr auto dnsVpnPrefix = "dns-vpn";
+            constexpr auto dnsEchPrefix = "dns-ech";
 
             constexpr auto dnsIn = "dns-in";
             constexpr auto mixedIn = "mixed-in";
@@ -205,6 +206,7 @@ namespace Configs {
             QList<QString> singIngressTags;
             QList<coreBridgeConfig> singToXrayBridges;
             QList<coreBridgeConfig> xrayToSingBridges;
+            QMap<QString, QString> echResolvers;
             std::shared_ptr<BuildConfigResult> result = std::make_shared<BuildConfigResult>();
         };
 
@@ -886,6 +888,7 @@ namespace Configs {
             int port = -1;
             QString type = "udp";
             QString path = "";
+            if (address.startsWith("udp://")) addr = addr.mid(6);
             if (address.startsWith("tcp://")) {
                 type = "tcp";
                 addr = addr.replace("tcp://", "");
@@ -1144,6 +1147,23 @@ namespace Configs {
             dnsLocalObj["tag"] = tags::dnsLocal;
             servers += dnsLocalObj;
 
+            int echDnsIdx = 0;
+            for (auto it = ctx.echResolvers.cbegin(); it != ctx.echResolvers.cend(); ++it) {
+                const QString tag = hopTag(tags::dnsEchPrefix, echDnsIdx++);
+
+                auto echDnsObj = buildDnsObj(ctx, it.value());
+                echDnsObj["tag"] = tag;
+                echDnsObj["domain_resolver"] = tags::dnsLocal;
+                servers.append(echDnsObj);
+
+                headRules.prepend(QJsonObject{
+                    {"domain", QJsonArray{it.key()}},
+                    {"query_type", QJsonArray{"HTTPS"}},
+                    {"action", "route"},
+                    {"server", tag},
+                });
+            }
+
             if (!headRules.isEmpty()) {
                 for (const auto &rule : rules) headRules.append(rule);
                 rules = headRules;
@@ -1372,6 +1392,14 @@ namespace Configs {
             return socksOutbound != nullptr && socksOutbound->version == 4;
         }
 
+        // A resolver buildDnsObj cannot express falls back to dns-direct like an unset one.
+        bool usableEchResolver(const QString &resolver) {
+            if (resolver.isEmpty()) return false;
+            if (!resolver.contains("://")) return true;
+            static const QStringList schemes = {"udp", "tcp", "tls", "https", "quic", "h3"};
+            return schemes.contains(resolver.section("://", 0, 0).toLower());
+        }
+
         // Without a static config the core fetches the ECH list over DNS first; via dns-remote that dials the same hop.
         void collectEchQueryName(BuildContext &ctx, const Profile &hop) {
             if (!hop.outbound->HasTLS()) return;
@@ -1384,7 +1412,11 @@ namespace Configs {
             if (name.isEmpty()) name = hop.outbound->server;
             name = toAceHost(name.trimmed());
             if (name.isEmpty() || QHostAddress(name).protocol() != QAbstractSocket::UnknownNetworkLayerProtocol) return;
-            if (!ctx.echQueryNames.contains(name)) ctx.echQueryNames << name;
+            if (usableEchResolver(tls->ech->resolver)) {
+                if (!ctx.echResolvers.contains(name)) ctx.echResolvers.insert(name, tls->ech->resolver);
+            } else if (!ctx.echQueryNames.contains(name)) {
+                ctx.echQueryNames << name;
+            }
         }
 
         void buildSingboxChain(BuildContext &ctx, const QList<std::shared_ptr<Profile>> &ents, const hopChainOptions &opts) {
@@ -2678,6 +2710,14 @@ namespace Configs {
         const auto clearTestBuildFlag = qScopeGuard([] { SetBuildingTestConfig(false); });
         BuildContext ctx;
         ctx.forTest = true;
+
+        for (const auto &item : profiles) {
+            if (item == nullptr) continue;
+            for (int hopId : unwrapChain(item->id)) {
+                if (const auto hop = getProfile(hopId); hop != nullptr) collectEchQueryName(ctx, *hop);
+            }
+        }
+
         buildDNSSection(ctx, false);
         if (!ctx.error.isEmpty())
         {
